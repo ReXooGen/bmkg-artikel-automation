@@ -58,7 +58,6 @@ desktop.ini
 
 # Code
 scheduler.py
-test_database_integration.py
 whatsapp_bot.py
 webhook_server.py
 bot_handlers.py
