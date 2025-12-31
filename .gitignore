@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables & Sensitive Data
+.env
+*.backup
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Output files
+artikel_cuaca.txt
+PyWhatKit_DB.txt
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Code
+scheduler.py
+test_database_integration.py
+whatsapp_bot.py
+webhook_server.py
+bot_handlers.py
+bot_config.py

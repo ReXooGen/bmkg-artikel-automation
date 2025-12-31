@@ -1,0 +1,14 @@
+# PyWa WhatsApp Chatbot Requirements
+
+# Main dependencies
+pywa>=1.21.0
+flask>=3.0.0
+flask-cors>=4.0.0
+python-dotenv>=1.0.0
+
+# For webhook ngrok (development)
+pyngrok>=7.0.0
+
+# Existing dependencies (keep)
+requests>=2.31.0
+google-generativeai>=0.3.0
