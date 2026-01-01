@@ -63,4 +63,8 @@ webhook_server.py
 bot_handlers.py
 bot_config.py
 
-bmkg_images
+# BMKG Images
+bmkg_images/
+*.png
+*.jpg
+*.jpeg
