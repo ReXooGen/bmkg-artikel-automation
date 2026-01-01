@@ -46,6 +46,9 @@ class CitySelector:
         Returns:
             Dict dengan format: {"Nama Kota": {"code": "...", "timezone": "...", "timezone_offset": ...}}
         """
+        # Clear selected cities terlebih dahulu
+        self.selected_cities = {}
+        
         # Jika tidak dispesifikasikan, bagi rata
         if wib_count is None and wita_count is None and wit_count is None:
             wib_count = total_cities // 2  # 50% WIB

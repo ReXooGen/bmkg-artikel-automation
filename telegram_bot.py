@@ -62,8 +62,7 @@ Bot ini membantu Anda mendapatkan informasi cuaca dari BMKG dan generate artikel
 /artikel - Generate artikel cuaca random (4 kota)
 /artikelkota - Generate artikel dengan kota pilihan (1-4 kota)
 /cuacakota - Info cuaca singkat real-time
-/prediksi - Gambar prediksi curah hujan bulanan
-/prediksi3 - Gambar prediksi curah hujan 3 bulanan
+/satelit - Citra satelit Himawari potensi hujan
 /kota - Lihat 4 kota yang sedang dipilih
 /random - Pilih 4 kota random baru
 /help - Tampilkan bantuan
@@ -111,9 +110,8 @@ Contoh:
 • `/carikota Malang`
 • `/carikota Denpasar`
 
-*4. Prediksi Curah Hujan*
-/prediksi - Gambar prediksi curah hujan bulanan
-/prediksi3 - Gambar prediksi 3 bulanan dari BMKG
+*4. Citra Satelit*
+/satelit - Citra satelit Himawari potensi hujan
 
 *5. Manajemen Kota*
 /kota - Lihat kota yang sedang dipilih
@@ -161,6 +159,18 @@ async def artikel(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     title = ai_title
             except Exception as e:
                 print(f"AI enhancement failed: {e}")
+        
+        # Kirim gambar satelit terlebih dahulu
+        try:
+            filepath, _ = image_fetcher.download_image('satelit', force=True)
+            if filepath and os.path.exists(filepath):
+                with open(filepath, 'rb') as photo:
+                    await update.message.reply_photo(
+                        photo=photo,
+                        caption="🛰️ Citra Satelit Himawari-9 - Potensi Curah Hujan Indonesia"
+                    )
+        except Exception as e:
+            print(f"Failed to send satellite image: {e}")
         
         # Format hasil - kirim judul terpisah dengan Markdown, artikel tanpa parsing
         escaped_title = escape_markdown(title, version=2)
@@ -307,6 +317,18 @@ async def artikelkota(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     title = ai_title
             except Exception as e:
                 print(f"AI enhancement failed: {e}")
+        
+        # Kirim gambar satelit terlebih dahulu
+        try:
+            filepath, _ = image_fetcher.download_image('satelit', force=True)
+            if filepath and os.path.exists(filepath):
+                with open(filepath, 'rb') as photo:
+                    await update.message.reply_photo(
+                        photo=photo,
+                        caption="Citra Satelit Himawari-9 - Potensi Curah Hujan Indonesia"
+                    )
+        except Exception as e:
+            print(f"Failed to send satellite image: {e}")
         
         # Format hasil - kirim judul terpisah dengan Markdown, artikel tanpa parsing
         escaped_title = escape_markdown(title, version=2)
@@ -530,34 +552,32 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Error in stats command: {e}")
 
 
-async def prediksi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler untuk command /prediksi - Gambar prediksi curah hujan BMKG"""
+async def satelit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk command /satelit - Citra satelit Himawari"""
     init_components()
     
-    await update.message.reply_text("📥 Mengambil gambar prediksi curah hujan dari BMKG...")
+    await update.message.reply_text("📥 Mengambil citra satelit dari BMKG...")
     
     try:
-        # Download gambar bulanan
-        filepath, is_updated = image_fetcher.download_image('bulanan', force=True)
+        # Download gambar satelit
+        filepath, is_updated = image_fetcher.download_image('satelit', force=True)
         
         if not filepath or not os.path.exists(filepath):
-            await update.message.reply_text("❌ Gagal mengambil gambar dari BMKG. Silakan coba lagi nanti.")
+            await update.message.reply_text("❌ Gagal mengambil citra satelit dari BMKG. Silakan coba lagi nanti.")
             return
         
         # Kirim gambar
         caption = (
-            "🗺️ *Prediksi Curah Hujan Bulanan Indonesia*\n\n"
+            "🛰️ *Citra Satelit Himawari-9*\n\n"
+            "*Potensi Curah Hujan Indonesia*\n\n"
             f"📅 Update: {datetime.now().strftime('%d %B %Y, %H:%M WIB')}\n"
             "📊 Sumber: BMKG - Badan Meteorologi Klimatologi dan Geofisika\n\n"
-            "*Keterangan:*\n"
-            "🔴 0-20mm: Rendah\n"
-            "🟠 20-50mm: Rendah\n"
-            "🟡 50-100mm: Rendah\n"
-            "🟢 100-200mm: Menengah\n"
-            "🟢 200-300mm: Menengah\n"
-            "🟢 300-500mm: Tinggi\n"
-            "🟢 >500mm: Sangat Tinggi\n\n"
-            "Data dari BMKG Indonesia 🇮🇩"
+            "*Informasi:*\n"
+            "🛰️ Satelit: Himawari-9\n"
+            "📡 Citra: Infrared (IR)\n"
+            "🌧️ Analisis: Potensi curah hujan\n\n"
+            "Produk turunan Himawari-9 Potential Rainfall adalah produk yang dapat digunakan untuk mengestimasi potensi curah hujan, yang disajikan berdasarkan kategori ringan, sedang, lebat, hingga sangat lebat, dengan menggunakan hubungan antara suhu puncak awan dengan curah hujan yang berpotensi dihasilkan.\n\n"
+            "Data dari BMKG Indonesia https://www.bmkg.go.id"
         )
         
         with open(filepath, 'rb') as photo:
@@ -570,49 +590,14 @@ async def prediksi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Info tambahan jika ada update
         if is_updated:
             await update.message.reply_text(
-                "✅ *Gambar terbaru berhasil diambil!*\n\n"
-                "Ini adalah versi terbaru dari BMKG.",
+                "✅ *Citra terbaru berhasil diambil!*\n\n"
+                "Ini adalah versi terbaru dari satelit Himawari-9.",
                 parse_mode='Markdown'
             )
         
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)}")
-        print(f"Error in prediksi command: {e}")
-
-
-async def prediksi3_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler untuk command /prediksi3 - Gambar prediksi 3 bulanan"""
-    init_components()
-    
-    await update.message.reply_text("📥 Mengambil gambar prediksi 3 bulanan dari BMKG...")
-    
-    try:
-        # Download gambar 3 bulanan
-        filepath, is_updated = image_fetcher.download_image('3bulanan', force=True)
-        
-        if not filepath or not os.path.exists(filepath):
-            await update.message.reply_text("❌ Gagal mengambil gambar dari BMKG. Silakan coba lagi nanti.")
-            return
-        
-        # Kirim gambar
-        caption = (
-            "🗺️ *Prediksi Curah Hujan 3 Bulanan Indonesia*\n\n"
-            f"📅 Update: {datetime.now().strftime('%d %B %Y, %H:%M WIB')}\n"
-            "📊 Sumber: BMKG - Badan Meteorologi Klimatologi dan Geofisika\n\n"
-            "Prediksi curah hujan untuk 3 bulan ke depan\n\n"
-            "Data dari BMKG Indonesia 🇮🇩"
-        )
-        
-        with open(filepath, 'rb') as photo:
-            await update.message.reply_photo(
-                photo=photo,
-                caption=caption,
-                parse_mode='Markdown'
-            )
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {str(e)}")
-        print(f"Error in prediksi3 command: {e}")
+        print(f"Error in satelit command: {e}")
 
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1018,8 +1003,7 @@ def main():
     application.add_handler(CommandHandler("artikelkota", artikelkota))
     application.add_handler(CommandHandler("cuacakota", cuacakota))
     application.add_handler(CommandHandler("carikota", carikota))
-    application.add_handler(CommandHandler("prediksi", prediksi_command))
-    application.add_handler(CommandHandler("prediksi3", prediksi3_command))
+    application.add_handler(CommandHandler("satelit", satelit_command))
     application.add_handler(CommandHandler("kota", kota_command))
     application.add_handler(CommandHandler("random", random_command))
     application.add_handler(CommandHandler("stats", stats))
@@ -1047,8 +1031,7 @@ def main():
     print("  /artikelkota - Generate artikel dengan kota pilihan")
     print("  /cuacakota   - Info cuaca kota")
     print("  /carikota    - Cari kota")
-    print("  /prediksi    - Gambar prediksi curah hujan bulanan")
-    print("  /prediksi3   - Gambar prediksi 3 bulanan")
+    print("  /satelit     - Gambar satelit Himawari rainfall potential")
     print("  /kota        - Lihat kota terpilih")
     print("  /random      - Pilih kota random")
     print("  /stats       - Statistik database")

@@ -34,11 +34,11 @@ class BMKGImageScheduler:
         """Check gambar baru dan kirim jika ada update"""
         try:
             print(f"\n{'='*60}")
-            print(f"🔍 Checking gambar prediksi BMKG - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"🔍 Checking gambar satelit BMKG - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             print(f"{'='*60}")
             
-            # Download gambar bulanan
-            filepath, is_updated = self.image_fetcher.download_image('bulanan')
+            # Download gambar satelit
+            filepath, is_updated = self.image_fetcher.download_image('satelit')
             
             if not filepath or not os.path.exists(filepath):
                 print("❌ Gagal download gambar dari BMKG")
@@ -56,19 +56,15 @@ class BMKGImageScheduler:
                 return
             
             # Buat caption
-            current_month = datetime.now().strftime('%B %Y')
             caption = (
-                f"🗺️ *Prediksi Curah Hujan - {current_month.upper()}*\n\n"
+                f"🛰️ *Citra Satelit Himawari - Potensi Hujan*\n\n"
                 "📅 *Update terbaru dari BMKG!*\n"
                 f"🕐 {datetime.now().strftime('%d %B %Y, %H:%M WIB')}\n\n"
                 "📊 Sumber: BMKG Indonesia\n"
                 "🌐 https://www.bmkg.go.id/\n\n"
-                "*Keterangan Curah Hujan:*\n"
-                "🔴 0-100mm: Rendah\n"
-                "🟡 100-200mm: Menengah\n"
-                "🟢 200-500mm: Tinggi\n"
-                "🟢 >500mm: Sangat Tinggi\n\n"
-                "Gunakan /prediksi untuk download gambar terbaru 🌤️"
+                "*Citra Satelit Himawari-9*\n"
+                "Potensi curah hujan berdasarkan citra inframerah\n\n"
+                "Gunakan /satelit untuk download gambar terbaru 🛰️"
             )
             
             # Kirim gambar
@@ -87,38 +83,22 @@ class BMKGImageScheduler:
     
     def start(self):
         """Start scheduler"""
-        # Job 1: Cek setiap tanggal 2 jam 10:00 WIB
+        # Job 1: Cek setiap 3 jam (update satelit lebih sering)
         self.scheduler.add_job(
             self.check_and_send_image,
             CronTrigger(
-                day=2,
-                hour=10,
-                minute=0,
+                hour='*/3',
                 timezone='Asia/Jakarta'
             ),
-            id='monthly_image_check',
-            name='Check BMKG Image Monthly',
-            replace_existing=True
-        )
-        
-        # Job 2: Cek harian jam 10:00 WIB (untuk testing/fallback)
-        self.scheduler.add_job(
-            self.check_and_send_image,
-            CronTrigger(
-                hour=10,
-                minute=0,
-                timezone='Asia/Jakarta'
-            ),
-            id='daily_image_check',
-            name='Check BMKG Image Daily',
+            id='satelit_image_check',
+            name='Check BMKG Satelit Image Every 3 Hours',
             replace_existing=True
         )
         
         self.scheduler.start()
         
         print("📅 Scheduler started!")
-        print(f"✅ Auto-check setiap tanggal 2 pukul 10:00 WIB")
-        print(f"✅ Daily check setiap jam 10:00 WIB")
+        print(f"✅ Auto-check setiap 3 jam")
         
         # Print next run times
         jobs = self.scheduler.get_jobs()

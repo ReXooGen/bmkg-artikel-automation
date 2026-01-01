@@ -197,13 +197,14 @@ Berikan HANYA paragraf penutup tanpa penjelasan."""
     def enhance_article(self, base_article: str, weather_data: Dict[str, Dict]) -> Tuple[str, Optional[str]]:
         """
         Enhance artikel dengan AI, dengan fallback otomatis ke template jika gagal
+        Hanya generate judul, tidak mengubah isi artikel
         
         Returns:
-            Tuple (artikel yang sudah ditingkatkan, judul AI atau None)
+            Tuple (artikel asli tanpa modifikasi, judul AI atau None)
         """
-        print(f"\n Mencoba enhance artikel dengan AI...")
+        print(f"\n🤖 Mencoba enhance judul dengan AI...")
         
-        # Generate title
+        # Generate title only
         ai_title = None
         try:
             ai_title = self.generate_title(weather_data)
@@ -218,50 +219,13 @@ Berikan HANYA paragraf penutup tanpa penjelasan."""
             self.ai_available = False
             return base_article, None
         
-        time.sleep(0.5)
-        
-        # Generate intro paragraph
-        intro = None
-        try:
-            intro = self.generate_intro_paragraph(weather_data)
-            if intro:
-                print("✓ Paragraf pembuka AI berhasil di-generate")
-        except Exception as e:
-            print(f"⚠️  Error generating intro: {e}")
-        
-        time.sleep(0.5)
-        
-        # Generate closing paragraph
-        closing = None
-        try:
-            closing = self.generate_closing_paragraph(weather_data)
-            if closing:
-                print("✓ Paragraf penutup AI berhasil di-generate")
-        except Exception as e:
-            print(f"⚠️  Error generating closing: {e}")
-        
-        # Gabungkan artikel
-        enhanced_parts = []
-        
-        if intro:
-            enhanced_parts.append(intro)
-            enhanced_parts.append("")
-        
-        enhanced_parts.append(base_article)
-        
-        if closing:
-            enhanced_parts.append("")
-            enhanced_parts.append(closing)
-        
-        enhanced_article = "\n".join(enhanced_parts)
-        
-        # Jika ada AI content yang berhasil di-generate
-        if intro or closing or ai_title:
-            print("✓ Artikel berhasil ditingkatkan dengan AI")
+        # Return artikel asli tanpa modifikasi, hanya judul yang AI-enhanced
+        if ai_title:
+            print("✓ Judul berhasil ditingkatkan dengan AI")
         else:
-            print("⚠️  AI enhancement gagal, menggunakan artikel dasar")
+            print("⚠️  AI enhancement gagal, menggunakan judul dasar")
         
-        return enhanced_article, ai_title
+        return base_article, ai_title
     
     def is_available(self) -> bool:
         """Check apakah AI masih tersedia"""

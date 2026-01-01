@@ -20,12 +20,11 @@ class BMKGImageFetcher:
             save_dir: Directory untuk menyimpan gambar
         """
         self.save_dir = save_dir
-        self.base_url = "https://dataweb.bmkg.go.id/iklim/prediksi-hujan-bulanan"
+        self.base_url = "https://inderaja.bmkg.go.id"
         
         # URL gambar yang tersedia
         self.image_urls = {
-            'bulanan': f"{self.base_url}/pch_bln_det_step2.png",
-            '3bulanan': f"{self.base_url}/pch_3bln_det_step2.png",
+            'satelit': f"{self.base_url}/IMAGE/HIMA/H08_RP_Indonesia.png",
         }
         
         # Create directory if not exists
@@ -97,12 +96,12 @@ class BMKGImageFetcher:
         except Exception as e:
             print(f"Error saving hash: {e}")
     
-    def download_image(self, image_type: str = 'bulanan', force: bool = False) -> Tuple[Optional[str], bool]:
+    def download_image(self, image_type: str = 'satelit', force: bool = False) -> Tuple[Optional[str], bool]:
         """
         Download gambar prediksi dari BMKG
         
         Args:
-            image_type: Tipe gambar ('bulanan' atau '3bulanan')
+            image_type: Tipe gambar ('satelit')
             force: Paksa download meskipun tidak ada perubahan
             
         Returns:
@@ -121,7 +120,8 @@ class BMKGImageFetcher:
             
             # Download gambar
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://www.bmkg.go.id/'
             }
             response = requests.get(url, headers=headers, timeout=30)
             response.raise_for_status()
@@ -136,7 +136,7 @@ class BMKGImageFetcher:
             if not is_updated and not force:
                 print(f"ℹ️ Gambar {image_type} tidak ada perubahan")
                 # Return file path yang lama jika ada
-                old_file = os.path.join(self.save_dir, f"prediksi_{image_type}_latest.png")
+                old_file = os.path.join(self.save_dir, f"{image_type}_latest.png")
                 if os.path.exists(old_file):
                     return old_file, False
                 # Jika file tidak ada, tetap save
@@ -146,11 +146,11 @@ class BMKGImageFetcher:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
             # Save dengan nama timestamp
-            filename_timestamped = f"prediksi_{image_type}_{timestamp}.png"
+            filename_timestamped = f"{image_type}_{timestamp}.png"
             filepath_timestamped = os.path.join(self.save_dir, filename_timestamped)
             
             # Save dengan nama latest (overwrite)
-            filename_latest = f"prediksi_{image_type}_latest.png"
+            filename_latest = f"{image_type}_latest.png"
             filepath_latest = os.path.join(self.save_dir, filename_latest)
             
             # Simpan kedua versi
@@ -179,7 +179,7 @@ class BMKGImageFetcher:
             print(f"❌ Error: {e}")
             return None, False
     
-    def get_image_info(self, image_type: str = 'bulanan') -> dict:
+    def get_image_info(self, image_type: str = 'satelit') -> dict:
         """
         Dapatkan info gambar yang tersimpan
         
@@ -189,7 +189,7 @@ class BMKGImageFetcher:
         Returns:
             Dict dengan info gambar
         """
-        filepath = os.path.join(self.save_dir, f"prediksi_{image_type}_latest.png")
+        filepath = os.path.join(self.save_dir, f"{image_type}_latest.png")
         
         info = {
             'exists': os.path.exists(filepath),
@@ -232,9 +232,9 @@ if __name__ == "__main__":
     
     fetcher = BMKGImageFetcher()
     
-    # Test download gambar bulanan
-    print("1. Download gambar prediksi bulanan:")
-    filepath, is_updated = fetcher.download_image('bulanan')
+    # Test download gambar satelit
+    print("1. Download gambar satelit Himawari:")
+    filepath, is_updated = fetcher.download_image('satelit')
     
     if filepath:
         print(f"\n✅ Success!")
@@ -242,19 +242,10 @@ if __name__ == "__main__":
         print(f"Updated: {is_updated}")
         
         # Show info
-        info = fetcher.get_image_info('bulanan')
+        info = fetcher.get_image_info('satelit')
         print(f"\nInfo:")
         print(f"  Size: {info['size']:,} bytes")
         print(f"  Modified: {info['modified']}")
         print(f"  Hash: {info['hash']}")
     
     print("\n" + "="*50)
-    
-    # Test download gambar 3 bulanan
-    print("\n2. Download gambar prediksi 3 bulanan:")
-    filepath, is_updated = fetcher.download_image('3bulanan')
-    
-    if filepath:
-        print(f"\n✅ Success!")
-        print(f"File: {filepath}")
-        print(f"Updated: {is_updated}")
