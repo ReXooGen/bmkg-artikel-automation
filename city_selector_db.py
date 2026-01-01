@@ -52,13 +52,11 @@ class CitySelector:
             wita_count = total_cities // 3  # 33% WITA
             wit_count = total_cities - wib_count - wita_count  # Sisanya WIT
         
-        selected = {}
-        
         # Pilih kota WIB
         if wib_count and wib_count > 0:
             cities_wib = self.db.get_random_cities(wib_count, 'WIB')
             for city in cities_wib:
-                selected[city['name']] = {
+                self.selected_cities[city['name']] = {
                     'code': city['code'],
                     'timezone': city['timezone'],
                     'timezone_offset': city['timezone_offset']
@@ -68,7 +66,7 @@ class CitySelector:
         if wita_count and wita_count > 0:
             cities_wita = self.db.get_random_cities(wita_count, 'WITA')
             for city in cities_wita:
-                selected[city['name']] = {
+                self.selected_cities[city['name']] = {
                     'code': city['code'],
                     'timezone': city['timezone'],
                     'timezone_offset': city['timezone_offset']
@@ -78,14 +76,13 @@ class CitySelector:
         if wit_count and wit_count > 0:
             cities_wit = self.db.get_random_cities(wit_count, 'WIT')
             for city in cities_wit:
-                selected[city['name']] = {
+                self.selected_cities[city['name']] = {
                     'code': city['code'],
                     'timezone': city['timezone'],
                     'timezone_offset': city['timezone_offset']
                 }
         
-        self.selected_cities = selected
-        return selected
+        return self.selected_cities
     
     def add_specific_city(self, city_name: str) -> bool:
         """
@@ -159,27 +156,9 @@ class CitySelector:
             List dict info kota
         """
         try:
-            query = """
-                SELECT kode, nama, zona_waktu, offset_waktu
-                FROM wilayah
-                WHERE tipe = 'Kota' OR tipe = 'Kabupaten'
-                AND nama LIKE ?
-                ORDER BY nama
-                LIMIT ?
-            """
-            
-            cursor = self.db.conn.execute(query, (f"%{keyword}%", limit))
-            results = []
-            
-            for row in cursor.fetchall():
-                results.append({
-                    'code': row[0],
-                    'name': row[1],
-                    'timezone': row[2],
-                    'timezone_offset': row[3]
-                })
-            
-            return results
+            # Gunakan fungsi dari WilayahDatabase untuk search
+            cities = self.db.get_cities_by_keyword(keyword, limit)
+            return cities
         except Exception as e:
             print(f"Error searching cities: {e}")
             return []
@@ -192,18 +171,16 @@ class CitySelector:
             Dict dengan key timezone dan value jumlah kota
         """
         try:
-            query = """
-                SELECT zona_waktu, COUNT(*) as count
-                FROM wilayah
-                WHERE tipe = 'Kota' OR tipe = 'Kabupaten'
-                GROUP BY zona_waktu
-            """
+            # Hitung per timezone menggunakan fungsi yang ada
+            wib_cities = self.db.get_cities_by_timezone('WIB')
+            wita_cities = self.db.get_cities_by_timezone('WITA')
+            wit_cities = self.db.get_cities_by_timezone('WIT')
             
-            cursor = self.db.conn.execute(query)
-            result = {}
-            
-            for row in cursor.fetchall():
-                result[row[0]] = row[1]
+            result = {
+                'WIB': len(wib_cities),
+                'WITA': len(wita_cities),
+                'WIT': len(wit_cities)
+            }
             
             return result
         except Exception as e:

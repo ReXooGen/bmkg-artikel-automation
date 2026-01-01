@@ -329,6 +329,59 @@ class WilayahDatabase:
                 }
         
         return result
+    
+    def get_cities_by_keyword(self, keyword: str, limit: int = 10) -> list:
+        """
+        Cari kota berdasarkan keyword
+        
+        Args:
+            keyword: Keyword pencarian
+            limit: Maksimal hasil yang dikembalikan
+            
+        Returns:
+            List dict info kota
+        """
+        if not self.conn:
+            self.connect()
+        
+        # Search case-insensitive untuk kota
+        query = """
+            SELECT DISTINCT kode, nama 
+            FROM wilayah_2020 
+            WHERE UPPER(nama) LIKE UPPER(?) 
+            AND LENGTH(kode) = 5
+            AND CAST(SUBSTR(kode, 4, 2) AS INTEGER) >= 71
+            AND (nama LIKE 'KOTA %' OR nama LIKE 'KAB. %')
+            ORDER BY nama
+            LIMIT ?
+        """
+        
+        self.cursor.execute(query, (f"%{keyword}%", limit))
+        results = []
+        
+        for row in self.cursor.fetchall():
+            kode_kota, nama_kota = row
+            
+            # Ambil kode kelurahan pertama
+            query_kel = """
+                SELECT kode 
+                FROM wilayah_2020 
+                WHERE kode LIKE ? AND LENGTH(kode) >= 13
+                LIMIT 1
+            """
+            self.cursor.execute(query_kel, (f"{kode_kota}.%",))
+            result_kel = self.cursor.fetchone()
+            
+            if result_kel:
+                tz_name, tz_offset = self.get_timezone_info(result_kel[0])
+                results.append({
+                    'name': nama_kota.replace('KAB. ', '').replace('KOTA ', '').title(),
+                    'code': result_kel[0],
+                    'timezone': tz_name,
+                    'timezone_offset': tz_offset
+                })
+        
+        return results
 
 
 # Contoh penggunaan
