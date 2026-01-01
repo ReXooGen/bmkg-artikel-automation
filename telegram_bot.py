@@ -53,7 +53,7 @@ Bot ini membantu Anda mendapatkan informasi cuaca dari BMKG dan generate artikel
 
 📋 *Command yang tersedia:*
 /artikel - Generate artikel cuaca random (4 kota)
-/artikel [kota] - Generate artikel dengan kota pilihan
+/artikel [kota1] [kota2] ... - Generate artikel dengan kota pilihan (1-4 kota)
 /cuaca [kota] - Info cuaca singkat untuk kota tertentu
 /cari [kota] - Cari kota di database
 /kota - Lihat kota yang sedang dipilih
@@ -61,7 +61,10 @@ Bot ini membantu Anda mendapatkan informasi cuaca dari BMKG dan generate artikel
 /help - Tampilkan bantuan
 
 💡 Contoh penggunaan:
-`/artikel Bandung`
+`/artikel` - 4 kota random
+`/artikel Bandung` - Bandung + 3 kota random
+`/artikel Jakarta Bandung` - Jakarta, Bandung + 2 kota random
+`/artikel Jakarta Bandung Surabaya Denpasar` - 4 kota spesifik
 `/cuaca Jakarta`
 `/cari Surabaya`
 
@@ -77,11 +80,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 *1. Generate Artikel Cuaca*
 /artikel - Generate artikel dengan 4 kota random
-/artikel [kota] - Generate artikel dengan kota tertentu
+/artikel [kota1] [kota2] ... - Generate artikel dengan kota tertentu (1-4 kota)
 
 Contoh:
-• `/artikel` - Artikel 4 kota random
-• `/artikel Bandung` - Artikel dengan Bandung sebagai kota utama
+• `/artikel` - 4 kota random
+• `/artikel Jakarta` - Jakarta + 3 kota random
+• `/artikel Jakarta Bandung` - Jakarta, Bandung + 2 kota random
+• `/artikel Jakarta Bandung Surabaya Denpasar` - 4 kota spesifik
 
 *2. Info Cuaca Singkat*
 /cuaca [nama kota] - Informasi cuaca real-time
@@ -121,32 +126,72 @@ async def artikel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Cek apakah ada argumen kota
         if context.args:
-            # Generate artikel dengan kota tertentu
-            city_name = ' '.join(context.args).title()
+            # Parse kota yang diminta (bisa 1 atau lebih)
+            city_names = []
+            temp_name = []
             
-            # Cari kota di database
-            city_info = city_selector.search_city(city_name)
+            for arg in context.args:
+                # Jika arg diawali huruf kapital, itu awal nama kota baru
+                if arg[0].isupper() and temp_name:
+                    city_names.append(' '.join(temp_name))
+                    temp_name = [arg]
+                else:
+                    temp_name.append(arg)
             
-            if not city_info:
+            # Tambahkan kota terakhir
+            if temp_name:
+                city_names.append(' '.join(temp_name))
+            
+            # Validasi maksimal 4 kota
+            if len(city_names) > 4:
                 await update.message.reply_text(
-                    f"❌ Kota '{city_name}' tidak ditemukan di database.\n\n"
-                    f"Gunakan /cari {city_name} untuk mencari kota yang mirip."
+                    "❌ Maksimal 4 kota untuk 1 artikel.\n\n"
+                    "Contoh: `/artikel Jakarta Bandung Surabaya Denpasar`"
                 )
                 return
             
-            # Tambahkan kota ini sebagai kota utama
+            # Reset selected cities
             city_selector.clear_selected_cities()
-            city_selector.add_specific_city(city_name)
             
-            # Tambah 3 kota random lainnya
-            additional_cities = city_selector.select_random_cities(
-                total_cities=3,
-                wib_count=1,
-                wita_count=1,
-                wit_count=1
-            )
+            # Tambahkan kota yang diminta
+            not_found = []
+            for city_name in city_names:
+                if not city_selector.add_specific_city(city_name):
+                    not_found.append(city_name)
             
+            # Jika ada kota yang tidak ditemukan
+            if not_found:
+                await update.message.reply_text(
+                    f"❌ Kota tidak ditemukan: {', '.join(not_found)}\n\n"
+                    f"Gunakan /cari [nama kota] untuk mencari kota yang tersedia."
+                )
+                return
+            
+            # Jika kurang dari 4 kota, tambahkan random
             selected_cities = city_selector.get_selected_cities()
+            if len(selected_cities) < 4:
+                remaining = 4 - len(selected_cities)
+                await update.message.reply_text(f"ℹ️ Menambahkan {remaining} kota random...")
+                
+                # Hitung distribusi timezone yang dibutuhkan
+                existing_tz = [info['timezone'] for info in selected_cities.values()]
+                wib_needed = max(0, 2 - existing_tz.count('WIB'))
+                wita_needed = max(0, 1 - existing_tz.count('WITA'))
+                wit_needed = max(0, 1 - existing_tz.count('WIT'))
+                
+                # Jika masih kurang, distribusi sisanya
+                total_needed = wib_needed + wita_needed + wit_needed
+                if total_needed < remaining:
+                    wib_needed += (remaining - total_needed)
+                
+                city_selector.select_random_cities(
+                    total_cities=remaining,
+                    wib_count=wib_needed,
+                    wita_count=wita_needed,
+                    wit_count=wit_needed
+                )
+                
+                selected_cities = city_selector.get_selected_cities()
         else:
             # Generate artikel dengan kota random
             initialize_cities(force_new=True)

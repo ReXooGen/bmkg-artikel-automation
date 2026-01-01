@@ -70,13 +70,21 @@ python telegram_bot.py
 Command bot:
 - `/start` - Mulai bot dan lihat welcome message
 - `/artikel` - Generate artikel cuaca dengan 4 kota random
-- `/artikel [kota]` - Generate artikel dengan kota tertentu (contoh: `/artikel Jakarta`)
+- `/artikel [kota1] [kota2] ...` - Generate artikel dengan kota pilihan (1-4 kota)
 - `/cuaca [kota]` - Info cuaca singkat untuk kota tertentu
 - `/cari [kota]` - Cari kota di database
 - `/kota` - Lihat 4 kota yang sedang dipilih
 - `/random` - Pilih 4 kota random baru
 - `/stats` - Statistik database dan status AI
 - `/help` - Bantuan lengkap
+
+**Contoh:**
+```
+/artikel                                    → 4 kota random
+/artikel Jakarta                            → Jakarta + 3 kota random
+/artikel Jakarta Bandung                    → Jakarta, Bandung + 2 kota random
+/artikel Jakarta Bandung Surabaya Denpasar  → 4 kota spesifik
+```
 
 Lihat [TELEGRAM_BOT_GUIDE.md](TELEGRAM_BOT_GUIDE.md) untuk panduan lengkap setup Telegram Bot.
 

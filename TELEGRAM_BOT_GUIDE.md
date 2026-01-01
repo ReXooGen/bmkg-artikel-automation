@@ -62,8 +62,15 @@
 
 ### Generate Artikel
 - `/artikel` - Generate artikel cuaca dengan 4 kota random
-- `/artikel Jakarta` - Generate artikel dengan Jakarta sebagai kota utama
-- `/artikel Bandung` - Generate artikel dengan Bandung sebagai kota utama
+- `/artikel [kota1] [kota2] ...` - Generate artikel dengan kota pilihan (1-4 kota)
+
+**Contoh:**
+```
+/artikel                                    → 4 kota random
+/artikel Jakarta                            → Jakarta + 3 kota random
+/artikel Jakarta Bandung                    → Jakarta, Bandung + 2 kota random
+/artikel Jakarta Bandung Surabaya Denpasar  → 4 kota spesifik
+```
 
 ### Info Cuaca
 - `/cuaca Jakarta` - Info cuaca singkat Jakarta
