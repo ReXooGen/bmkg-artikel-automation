@@ -134,6 +134,86 @@ class CitySelector:
         
         print(f"{'='*60}\n")
     
+    def search_city(self, city_name: str) -> Optional[Dict]:
+        """
+        Cari kota spesifik di database (exact match atau contains)
+        
+        Args:
+            city_name: Nama kota yang dicari
+            
+        Returns:
+            Dict info kota atau None jika tidak ditemukan
+        """
+        results = self.search_cities(city_name, limit=1)
+        return results[0] if results else None
+    
+    def search_cities(self, keyword: str, limit: int = 10) -> list:
+        """
+        Cari kota berdasarkan keyword
+        
+        Args:
+            keyword: Keyword pencarian
+            limit: Maksimal hasil yang dikembalikan
+            
+        Returns:
+            List dict info kota
+        """
+        try:
+            query = """
+                SELECT kode, nama, zona_waktu, offset_waktu
+                FROM wilayah
+                WHERE tipe = 'Kota' OR tipe = 'Kabupaten'
+                AND nama LIKE ?
+                ORDER BY nama
+                LIMIT ?
+            """
+            
+            cursor = self.db.conn.execute(query, (f"%{keyword}%", limit))
+            results = []
+            
+            for row in cursor.fetchall():
+                results.append({
+                    'code': row[0],
+                    'name': row[1],
+                    'timezone': row[2],
+                    'timezone_offset': row[3]
+                })
+            
+            return results
+        except Exception as e:
+            print(f"Error searching cities: {e}")
+            return []
+    
+    def count_cities_by_timezone(self) -> Dict[str, int]:
+        """
+        Hitung jumlah kota per timezone
+        
+        Returns:
+            Dict dengan key timezone dan value jumlah kota
+        """
+        try:
+            query = """
+                SELECT zona_waktu, COUNT(*) as count
+                FROM wilayah
+                WHERE tipe = 'Kota' OR tipe = 'Kabupaten'
+                GROUP BY zona_waktu
+            """
+            
+            cursor = self.db.conn.execute(query)
+            result = {}
+            
+            for row in cursor.fetchall():
+                result[row[0]] = row[1]
+            
+            return result
+        except Exception as e:
+            print(f"Error counting cities: {e}")
+            return {}
+    
+    def clear_selected_cities(self):
+        """Hapus semua kota yang sudah dipilih"""
+        self.selected_cities = {}
+    
     def close(self):
         """Tutup koneksi database"""
         self.db.close()
