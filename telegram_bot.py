@@ -53,20 +53,20 @@ Bot ini membantu Anda mendapatkan informasi cuaca dari BMKG dan generate artikel
 
 📋 *Command yang tersedia:*
 /artikel - Generate artikel cuaca random (4 kota)
-/artikel [kota1] [kota2] ... - Generate artikel dengan kota pilihan (1-4 kota)
-/cuaca [kota] - Info cuaca singkat untuk kota tertentu
-/cari [kota] - Cari kota di database
-/kota - Lihat kota yang sedang dipilih
+/artikelkota - Generate artikel dengan kota pilihan (1-4 kota)
+/cuacakota - Info cuaca singkat real-time
+/kota - Lihat 4 kota yang sedang dipilih
 /random - Pilih 4 kota random baru
 /help - Tampilkan bantuan
+/carikota - Cari kota di database 90,826+ kota
 
 💡 Contoh penggunaan:
 `/artikel` - 4 kota random
-`/artikel Bandung` - Bandung + 3 kota random
-`/artikel Jakarta Bandung` - Jakarta, Bandung + 2 kota random
-`/artikel Jakarta Bandung Surabaya Denpasar` - 4 kota spesifik
-`/cuaca Jakarta`
-`/cari Surabaya`
+`/artikelkota Bandung` - Bandung + 3 kota random
+`/artikelkota Jakarta Bandung` - Jakarta, Bandung + 2 kota random
+`/artikelkota Jakarta Bandung Surabaya Denpasar` - 4 kota spesifik
+`/cuacakota Jakarta`
+`/carikota Surabaya`
 
 Data cuaca dari BMKG Indonesia 🇮🇩
     """
@@ -80,27 +80,27 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 *1. Generate Artikel Cuaca*
 /artikel - Generate artikel dengan 4 kota random
-/artikel [kota1] [kota2] ... - Generate artikel dengan kota tertentu (1-4 kota)
+/artikelkota [kota1] [kota2] ... - Generate artikel dengan kota tertentu (1-4 kota)
 
 Contoh:
 • `/artikel` - 4 kota random
-• `/artikel Jakarta` - Jakarta + 3 kota random
-• `/artikel Jakarta Bandung` - Jakarta, Bandung + 2 kota random
-• `/artikel Jakarta Bandung Surabaya Denpasar` - 4 kota spesifik
+• `/artikelkota Jakarta` - Jakarta + 3 kota random
+• `/artikelkota Jakarta Bandung` - Jakarta, Bandung + 2 kota random
+• `/artikelkota Jakarta Bandung Surabaya Denpasar` - 4 kota spesifik
 
 *2. Info Cuaca Singkat*
-/cuaca [nama kota] - Informasi cuaca real-time
+/cuacakota [nama kota] - Informasi cuaca real-time
 
 Contoh:
-• `/cuaca Jakarta`
-• `/cuaca Surabaya`
+• `/cuacakota Jakarta`
+• `/cuacakota Surabaya`
 
 *3. Cari Kota*
-/cari [nama kota] - Cari kota di database
+/carikota [nama kota] - Cari kota di database
 
 Contoh:
-• `/cari Malang`
-• `/cari Denpasar`
+• `/carikota Malang`
+• `/carikota Denpasar`
 
 *4. Manajemen Kota*
 /kota - Lihat kota yang sedang dipilih
@@ -118,84 +118,15 @@ Data cuaca dari BMKG Indonesia 🇮🇩
 
 
 async def artikel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler untuk command /artikel"""
+    """Handler untuk command /artikel - random 4 kota"""
     init_components()
     
     await update.message.reply_text("⏳ Mengambil data cuaca dari BMKG...")
     
     try:
-        # Cek apakah ada argumen kota
-        if context.args:
-            # Parse kota yang diminta (bisa 1 atau lebih)
-            city_names = []
-            temp_name = []
-            
-            for arg in context.args:
-                # Jika arg diawali huruf kapital, itu awal nama kota baru
-                if arg[0].isupper() and temp_name:
-                    city_names.append(' '.join(temp_name))
-                    temp_name = [arg]
-                else:
-                    temp_name.append(arg)
-            
-            # Tambahkan kota terakhir
-            if temp_name:
-                city_names.append(' '.join(temp_name))
-            
-            # Validasi maksimal 4 kota
-            if len(city_names) > 4:
-                await update.message.reply_text(
-                    "❌ Maksimal 4 kota untuk 1 artikel.\n\n"
-                    "Contoh: `/artikel Jakarta Bandung Surabaya Denpasar`"
-                )
-                return
-            
-            # Reset selected cities
-            city_selector.clear_selected_cities()
-            
-            # Tambahkan kota yang diminta
-            not_found = []
-            for city_name in city_names:
-                if not city_selector.add_specific_city(city_name):
-                    not_found.append(city_name)
-            
-            # Jika ada kota yang tidak ditemukan
-            if not_found:
-                await update.message.reply_text(
-                    f"❌ Kota tidak ditemukan: {', '.join(not_found)}\n\n"
-                    f"Gunakan /cari [nama kota] untuk mencari kota yang tersedia."
-                )
-                return
-            
-            # Jika kurang dari 4 kota, tambahkan random
-            selected_cities = city_selector.get_selected_cities()
-            if len(selected_cities) < 4:
-                remaining = 4 - len(selected_cities)
-                await update.message.reply_text(f"ℹ️ Menambahkan {remaining} kota random...")
-                
-                # Hitung distribusi timezone yang dibutuhkan
-                existing_tz = [info['timezone'] for info in selected_cities.values()]
-                wib_needed = max(0, 2 - existing_tz.count('WIB'))
-                wita_needed = max(0, 1 - existing_tz.count('WITA'))
-                wit_needed = max(0, 1 - existing_tz.count('WIT'))
-                
-                # Jika masih kurang, distribusi sisanya
-                total_needed = wib_needed + wita_needed + wit_needed
-                if total_needed < remaining:
-                    wib_needed += (remaining - total_needed)
-                
-                city_selector.select_random_cities(
-                    total_cities=remaining,
-                    wib_count=wib_needed,
-                    wita_count=wita_needed,
-                    wit_count=wit_needed
-                )
-                
-                selected_cities = city_selector.get_selected_cities()
-        else:
-            # Generate artikel dengan kota random
-            initialize_cities(force_new=True)
-            selected_cities = CITY_CODES
+        # Generate artikel dengan kota random
+        initialize_cities(force_new=True)
+        selected_cities = CITY_CODES
         
         # Ambil data cuaca
         weather_data = fetch_all_cities_weather(selected_cities)
@@ -242,14 +173,145 @@ async def artikel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Error in artikel command: {e}")
 
 
-async def cuaca(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler untuk command /cuaca [kota]"""
+async def artikelkota(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk command /artikelkota - dengan kota pilihan"""
     init_components()
     
     if not context.args:
         await update.message.reply_text(
-            "❌ Gunakan format: /cuaca [nama kota]\n\n"
-            "Contoh: /cuaca Jakarta"
+            "❌ Gunakan format: /artikelkota [kota1] [kota2] ...\n\n"
+            "Contoh:\n"
+            "• `/artikelkota Jakarta`\n"
+            "• `/artikelkota Jakarta Bandung`\n"
+            "• `/artikelkota Jakarta Bandung Surabaya Denpasar`",
+            parse_mode='Markdown'
+        )
+        return
+    
+    await update.message.reply_text("⏳ Mengambil data cuaca dari BMKG...")
+    
+    try:
+        # Parse kota yang diminta (bisa 1 atau lebih)
+        city_names = []
+        temp_name = []
+        
+        for arg in context.args:
+            # Jika arg diawali huruf kapital, itu awal nama kota baru
+            if arg[0].isupper() and temp_name:
+                city_names.append(' '.join(temp_name))
+                temp_name = [arg]
+            else:
+                temp_name.append(arg)
+        
+        # Tambahkan kota terakhir
+        if temp_name:
+            city_names.append(' '.join(temp_name))
+        
+        # Validasi maksimal 4 kota
+        if len(city_names) > 4:
+            await update.message.reply_text(
+                "❌ Maksimal 4 kota untuk 1 artikel.\n\n"
+                "Contoh: `/artikelkota Jakarta Bandung Surabaya Denpasar`",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Reset selected cities
+        city_selector.clear_selected_cities()
+        
+        # Tambahkan kota yang diminta
+        not_found = []
+        for city_name in city_names:
+            if not city_selector.add_specific_city(city_name):
+                not_found.append(city_name)
+        
+        # Jika ada kota yang tidak ditemukan
+        if not_found:
+            await update.message.reply_text(
+                f"❌ Kota tidak ditemukan: {', '.join(not_found)}\n\n"
+                f"Gunakan /carikota [nama kota] untuk mencari kota yang tersedia."
+            )
+            return
+        
+        # Jika kurang dari 4 kota, tambahkan random
+        selected_cities = city_selector.get_selected_cities()
+        if len(selected_cities) < 4:
+            remaining = 4 - len(selected_cities)
+            await update.message.reply_text(f"ℹ️ Menambahkan {remaining} kota random...")
+            
+            # Hitung distribusi timezone yang dibutuhkan
+            existing_tz = [info['timezone'] for info in selected_cities.values()]
+            wib_needed = max(0, 2 - existing_tz.count('WIB'))
+            wita_needed = max(0, 1 - existing_tz.count('WITA'))
+            wit_needed = max(0, 1 - existing_tz.count('WIT'))
+            
+            # Jika masih kurang, distribusi sisanya
+            total_needed = wib_needed + wita_needed + wit_needed
+            if total_needed < remaining:
+                wib_needed += (remaining - total_needed)
+            
+            city_selector.select_random_cities(
+                total_cities=remaining,
+                wib_count=wib_needed,
+                wita_count=wita_needed,
+                wit_count=wit_needed
+            )
+            
+            selected_cities = city_selector.get_selected_cities()
+        
+        # Ambil data cuaca
+        weather_data = fetch_all_cities_weather(selected_cities)
+        
+        if not weather_data or len(weather_data) < 4:
+            await update.message.reply_text("❌ Gagal mengambil data cuaca dari BMKG. Silakan coba lagi.")
+            return
+        
+        # Generate artikel
+        article = generator.generate_article(weather_data)
+        title = generator.generate_title(weather_data)
+        
+        # Enhance dengan AI jika tersedia
+        if ai_generator:
+            try:
+                await update.message.reply_text("🤖 Meningkatkan artikel dengan AI...")
+                article, ai_title = ai_generator.enhance_article(article, weather_data)
+                if ai_title:
+                    title = ai_title
+            except Exception as e:
+                print(f"AI enhancement failed: {e}")
+        
+        # Format hasil
+        result = f"*{title}*\n\n{article}"
+        
+        # Split jika terlalu panjang (Telegram limit 4096 chars)
+        if len(result) > 4000:
+            # Kirim judul dulu
+            await update.message.reply_text(f"*{title}*", parse_mode='Markdown')
+            
+            # Split artikel
+            chunks = [article[i:i+4000] for i in range(0, len(article), 4000)]
+            for chunk in chunks:
+                await update.message.reply_text(chunk)
+        else:
+            await update.message.reply_text(result, parse_mode='Markdown')
+        
+        # Kirim ringkasan kota
+        city_list = "\n".join([f"• {name}" for name in weather_data.keys()])
+        await update.message.reply_text(f"📍 *Kota dalam artikel:*\n{city_list}", parse_mode='Markdown')
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {str(e)}")
+        print(f"Error in artikel command: {e}")
+
+
+async def cuacakota(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk command /cuacakota"""
+    init_components()
+    
+    if not context.args:
+        await update.message.reply_text(
+            "❌ Gunakan format: /cuacakota [nama kota]\n\n"
+            "Contoh: /cuacakota Jakarta"
         )
         return
     
@@ -264,7 +326,7 @@ async def cuaca(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not city_info:
             await update.message.reply_text(
                 f"❌ Kota '{city_name}' tidak ditemukan.\n\n"
-                f"Gunakan /cari {city_name} untuk mencari kota yang mirip."
+                f"Gunakan /carikota {city_name} untuk mencari kota yang mirip."
             )
             return
         
@@ -302,14 +364,14 @@ Data dari BMKG Indonesia 🇮🇩
         print(f"Error in cuaca command: {e}")
 
 
-async def cari(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler untuk command /cari [kota]"""
+async def carikota(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk command /carikota"""
     init_components()
     
     if not context.args:
         await update.message.reply_text(
-            "❌ Gunakan format: /cari [nama kota]\n\n"
-            "Contoh: /cari Bandung"
+            "❌ Gunakan format: /carikota [nama kota]\n\n"
+            "Contoh: /carikota Bandung"
         )
         return
     
@@ -463,8 +525,9 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("artikel", artikel))
-    application.add_handler(CommandHandler("cuaca", cuaca))
-    application.add_handler(CommandHandler("cari", cari))
+    application.add_handler(CommandHandler("artikelkota", artikelkota))
+    application.add_handler(CommandHandler("cuacakota", cuacakota))
+    application.add_handler(CommandHandler("carikota", carikota))
     application.add_handler(CommandHandler("kota", kota_command))
     application.add_handler(CommandHandler("random", random_command))
     application.add_handler(CommandHandler("stats", stats))
@@ -472,14 +535,15 @@ def main():
     print("✅ Bot siap menerima perintah!")
     print("=" * 60)
     print("\nCommand yang tersedia:")
-    print("  /start   - Mulai bot")
-    print("  /help    - Bantuan")
-    print("  /artikel - Generate artikel cuaca")
-    print("  /cuaca   - Info cuaca kota")
-    print("  /cari    - Cari kota")
-    print("  /kota    - Lihat kota terpilih")
-    print("  /random  - Pilih kota random")
-    print("  /stats   - Statistik database")
+    print("  /start       - Mulai bot")
+    print("  /help        - Bantuan")
+    print("  /artikel     - Generate artikel cuaca random")
+    print("  /artikelkota - Generate artikel dengan kota pilihan")
+    print("  /cuacakota   - Info cuaca kota")
+    print("  /carikota    - Cari kota")
+    print("  /kota        - Lihat kota terpilih")
+    print("  /random      - Pilih kota random")
+    print("  /stats       - Statistik database")
     print("\nTekan Ctrl+C untuk stop bot")
     print("=" * 60)
     
