@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from bmkg_api import fetch_all_cities_weather, BMKGWeatherAPI
 from template_generator import WeatherArticleGenerator
 from ai_generator import GeminiAIGenerator
+from bmkg_image_fetcher import BMKGImageFetcher
+from bmkg_image_scheduler import BMKGImageScheduler
 from config_db import (
     GOOGLE_GEMINI_API_KEYS,
     USE_AI_ENHANCEMENT,
@@ -29,11 +31,12 @@ load_dotenv()
 city_selector = None
 generator = None
 ai_generator = None
+image_fetcher = None
 
 
 def init_components():
     """Initialize komponen bot"""
-    global city_selector, generator, ai_generator
+    global city_selector, generator, ai_generator, image_fetcher
     
     if city_selector is None:
         city_selector = CitySelector()
@@ -43,6 +46,9 @@ def init_components():
     
     if ai_generator is None and USE_AI_ENHANCEMENT and GOOGLE_GEMINI_API_KEYS:
         ai_generator = GeminiAIGenerator(GOOGLE_GEMINI_API_KEYS)
+    
+    if image_fetcher is None:
+        image_fetcher = BMKGImageFetcher()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -56,6 +62,8 @@ Bot ini membantu Anda mendapatkan informasi cuaca dari BMKG dan generate artikel
 /artikel - Generate artikel cuaca random (4 kota)
 /artikelkota - Generate artikel dengan kota pilihan (1-4 kota)
 /cuacakota - Info cuaca singkat real-time
+/prediksi - Gambar prediksi curah hujan bulanan
+/prediksi3 - Gambar prediksi curah hujan 3 bulanan
 /kota - Lihat 4 kota yang sedang dipilih
 /random - Pilih 4 kota random baru
 /help - Tampilkan bantuan
@@ -103,7 +111,11 @@ Contoh:
 • `/carikota Malang`
 • `/carikota Denpasar`
 
-*4. Manajemen Kota*
+*4. Prediksi Curah Hujan*
+/prediksi - Gambar prediksi curah hujan bulanan
+/prediksi3 - Gambar prediksi 3 bulanan dari BMKG
+
+*5. Manajemen Kota*
 /kota - Lihat kota yang sedang dipilih
 /random - Pilih 4 kota random baru
 
@@ -518,6 +530,91 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Error in stats command: {e}")
 
 
+async def prediksi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk command /prediksi - Gambar prediksi curah hujan BMKG"""
+    init_components()
+    
+    await update.message.reply_text("📥 Mengambil gambar prediksi curah hujan dari BMKG...")
+    
+    try:
+        # Download gambar bulanan
+        filepath, is_updated = image_fetcher.download_image('bulanan', force=True)
+        
+        if not filepath or not os.path.exists(filepath):
+            await update.message.reply_text("❌ Gagal mengambil gambar dari BMKG. Silakan coba lagi nanti.")
+            return
+        
+        # Kirim gambar
+        caption = (
+            "🗺️ *Prediksi Curah Hujan Bulanan Indonesia*\n\n"
+            f"📅 Update: {datetime.now().strftime('%d %B %Y, %H:%M WIB')}\n"
+            "📊 Sumber: BMKG - Badan Meteorologi Klimatologi dan Geofisika\n\n"
+            "*Keterangan:*\n"
+            "🔴 0-20mm: Rendah\n"
+            "🟠 20-50mm: Rendah\n"
+            "🟡 50-100mm: Rendah\n"
+            "🟢 100-200mm: Menengah\n"
+            "🟢 200-300mm: Menengah\n"
+            "🟢 300-500mm: Tinggi\n"
+            "🟢 >500mm: Sangat Tinggi\n\n"
+            "Data dari BMKG Indonesia 🇮🇩"
+        )
+        
+        with open(filepath, 'rb') as photo:
+            await update.message.reply_photo(
+                photo=photo,
+                caption=caption,
+                parse_mode='Markdown'
+            )
+        
+        # Info tambahan jika ada update
+        if is_updated:
+            await update.message.reply_text(
+                "✅ *Gambar terbaru berhasil diambil!*\n\n"
+                "Ini adalah versi terbaru dari BMKG.",
+                parse_mode='Markdown'
+            )
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {str(e)}")
+        print(f"Error in prediksi command: {e}")
+
+
+async def prediksi3_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk command /prediksi3 - Gambar prediksi 3 bulanan"""
+    init_components()
+    
+    await update.message.reply_text("📥 Mengambil gambar prediksi 3 bulanan dari BMKG...")
+    
+    try:
+        # Download gambar 3 bulanan
+        filepath, is_updated = image_fetcher.download_image('3bulanan', force=True)
+        
+        if not filepath or not os.path.exists(filepath):
+            await update.message.reply_text("❌ Gagal mengambil gambar dari BMKG. Silakan coba lagi nanti.")
+            return
+        
+        # Kirim gambar
+        caption = (
+            "🗺️ *Prediksi Curah Hujan 3 Bulanan Indonesia*\n\n"
+            f"📅 Update: {datetime.now().strftime('%d %B %Y, %H:%M WIB')}\n"
+            "📊 Sumber: BMKG - Badan Meteorologi Klimatologi dan Geofisika\n\n"
+            "Prediksi curah hujan untuk 3 bulan ke depan\n\n"
+            "Data dari BMKG Indonesia 🇮🇩"
+        )
+        
+        with open(filepath, 'rb') as photo:
+            await update.message.reply_photo(
+                photo=photo,
+                caption=caption,
+                parse_mode='Markdown'
+            )
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {str(e)}")
+        print(f"Error in prediksi3 command: {e}")
+
+
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler untuk button callback"""
     init_components()
@@ -901,6 +998,7 @@ def main():
     
     # Ambil token dari environment variable
     token = os.getenv('TELEGRAM_BOT_TOKEN')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID', '')
     
     if not token:
         print("❌ Error: TELEGRAM_BOT_TOKEN tidak ditemukan di .env file")
@@ -920,6 +1018,8 @@ def main():
     application.add_handler(CommandHandler("artikelkota", artikelkota))
     application.add_handler(CommandHandler("cuacakota", cuacakota))
     application.add_handler(CommandHandler("carikota", carikota))
+    application.add_handler(CommandHandler("prediksi", prediksi_command))
+    application.add_handler(CommandHandler("prediksi3", prediksi3_command))
     application.add_handler(CommandHandler("kota", kota_command))
     application.add_handler(CommandHandler("random", random_command))
     application.add_handler(CommandHandler("stats", stats))
@@ -927,7 +1027,18 @@ def main():
     # Tambahkan callback query handler untuk button
     application.add_handler(CallbackQueryHandler(button_callback))
     
-    print("✅ Bot siap menerima perintah!")
+    # Start scheduler untuk auto-check gambar
+    if chat_id:
+        print("\n📅 Starting image scheduler...")
+        scheduler = BMKGImageScheduler(token, chat_id)
+        scheduler.start()
+        print(f"   Target chat ID: {chat_id}")
+    else:
+        print("\n⚠️ TELEGRAM_CHAT_ID tidak diset")
+        print("   Auto-send gambar disabled")
+        print("   Set TELEGRAM_CHAT_ID di .env untuk enable")
+    
+    print("\n✅ Bot siap menerima perintah!")
     print("=" * 60)
     print("\nCommand yang tersedia:")
     print("  /start       - Mulai bot")
@@ -936,6 +1047,8 @@ def main():
     print("  /artikelkota - Generate artikel dengan kota pilihan")
     print("  /cuacakota   - Info cuaca kota")
     print("  /carikota    - Cari kota")
+    print("  /prediksi    - Gambar prediksi curah hujan bulanan")
+    print("  /prediksi3   - Gambar prediksi 3 bulanan")
     print("  /kota        - Lihat kota terpilih")
     print("  /random      - Pilih kota random")
     print("  /stats       - Statistik database")
