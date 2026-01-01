@@ -5,8 +5,9 @@ Telegram Bot untuk BMKG Weather Automation
 import os
 import sys
 from datetime import datetime
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
+from telegram.helpers import escape_markdown
 from dotenv import load_dotenv
 
 from bmkg_api import fetch_all_cities_weather, BMKGWeatherAPI
@@ -149,20 +150,18 @@ async def artikel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 print(f"AI enhancement failed: {e}")
         
-        # Format hasil
-        result = f"*{title}*\n\n{article}"
+        # Format hasil - kirim judul terpisah dengan Markdown, artikel tanpa parsing
+        escaped_title = escape_markdown(title, version=2)
+        await update.message.reply_text(f"*{escaped_title}*", parse_mode='MarkdownV2')
         
-        # Split jika terlalu panjang (Telegram limit 4096 chars)
-        if len(result) > 4000:
-            # Kirim judul dulu
-            await update.message.reply_text(f"*{title}*", parse_mode='Markdown')
-            
-            # Split artikel
+        # Split artikel jika terlalu panjang (Telegram limit 4096 chars)
+        # Kirim artikel TANPA parse_mode untuk menghindari error parsing
+        if len(article) > 4000:
             chunks = [article[i:i+4000] for i in range(0, len(article), 4000)]
             for chunk in chunks:
                 await update.message.reply_text(chunk)
         else:
-            await update.message.reply_text(result, parse_mode='Markdown')
+            await update.message.reply_text(article)
         
         # Kirim ringkasan kota
         city_list = "\n".join([f"• {name}" for name in weather_data.keys()])
@@ -178,12 +177,31 @@ async def artikelkota(update: Update, context: ContextTypes.DEFAULT_TYPE):
     init_components()
     
     if not context.args:
+        # Tampilkan menu pilihan provinsi dengan inline keyboard
+        keyboard = []
+        provinces = city_selector.db.get_all_provinces()
+        
+        # Buat button 2 kolom per row
+        for i in range(0, len(provinces), 2):
+            row = []
+            for j in range(2):
+                if i + j < len(provinces):
+                    prov = provinces[i + j]
+                    row.append(InlineKeyboardButton(
+                        prov['name'], 
+                        callback_data=f"prov_{prov['code']}"
+                    ))
+            keyboard.append(row)
+        
+        # Tambahkan button random
+        keyboard.append([InlineKeyboardButton("🎲 Pilih Random", callback_data="artikel_random")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            "❌ Gunakan format: /artikelkota [kota1] [kota2] ...\n\n"
-            "Contoh:\n"
-            "• `/artikelkota Jakarta`\n"
-            "• `/artikelkota Jakarta Bandung`\n"
-            "• `/artikelkota Jakarta Bandung Surabaya Denpasar`",
+            "📍 *Pilih Provinsi:*\n\n"
+            "Pilih provinsi untuk melihat daftar kota,\n"
+            "atau ketik: `/artikelkota [nama kota]`",
+            reply_markup=reply_markup,
             parse_mode='Markdown'
         )
         return
@@ -280,20 +298,18 @@ async def artikelkota(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 print(f"AI enhancement failed: {e}")
         
-        # Format hasil
-        result = f"*{title}*\n\n{article}"
+        # Format hasil - kirim judul terpisah dengan Markdown, artikel tanpa parsing
+        escaped_title = escape_markdown(title, version=2)
+        await update.message.reply_text(f"*{escaped_title}*", parse_mode='MarkdownV2')
         
-        # Split jika terlalu panjang (Telegram limit 4096 chars)
-        if len(result) > 4000:
-            # Kirim judul dulu
-            await update.message.reply_text(f"*{title}*", parse_mode='Markdown')
-            
-            # Split artikel
+        # Split artikel jika terlalu panjang (Telegram limit 4096 chars)
+        # Kirim artikel TANPA parse_mode untuk menghindari error parsing
+        if len(article) > 4000:
             chunks = [article[i:i+4000] for i in range(0, len(article), 4000)]
             for chunk in chunks:
                 await update.message.reply_text(chunk)
         else:
-            await update.message.reply_text(result, parse_mode='Markdown')
+            await update.message.reply_text(article)
         
         # Kirim ringkasan kota
         city_list = "\n".join([f"• {name}" for name in weather_data.keys()])
@@ -504,6 +520,272 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Error in stats command: {e}")
 
 
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk button callback"""
+    init_components()
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    
+    # Handle pilih provinsi
+    if data.startswith("prov_"):
+        province_code = data.split("_")[1]
+        cities = city_selector.db.get_cities_by_province(province_code)
+        
+        if not cities:
+            await query.edit_message_text("❌ Tidak ada kota ditemukan di provinsi ini.")
+            return
+        
+        # Buat keyboard untuk kota (max 100 button per message limit Telegram)
+        keyboard = []
+        for i in range(0, min(len(cities), 100), 2):
+            row = []
+            for j in range(2):
+                if i + j < len(cities) and i + j < 100:
+                    city = cities[i + j]
+                    row.append(InlineKeyboardButton(
+                        city['name'][:30],  # Limit 30 chars
+                        callback_data=f"city_{city['name']}"
+                    ))
+            keyboard.append(row)
+        
+        # Tambahkan button kembali
+        keyboard.append([InlineKeyboardButton("« Kembali ke Provinsi", callback_data="back_prov")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        province_name = city_selector.db.get_all_provinces()
+        province_name = next((p['name'] for p in province_name if p['code'] == province_code), "Provinsi")
+        
+        await query.edit_message_text(
+            f"📍 *Pilih Kota di {province_name}:*\n\n"
+            f"Total: {len(cities)} kota",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    # Handle pilih kota
+    elif data.startswith("city_"):
+        city_name = data.split("_", 1)[1]
+        
+        # Simpan kota ke context user_data
+        if 'selected_cities' not in context.user_data:
+            context.user_data['selected_cities'] = []
+        
+        if city_name not in context.user_data['selected_cities']:
+            context.user_data['selected_cities'].append(city_name)
+        
+        selected = context.user_data['selected_cities']
+        
+        # Buat keyboard untuk opsi selanjutnya
+        keyboard = []
+        
+        if len(selected) < 4:
+            keyboard.append([InlineKeyboardButton("➕ Tambah Kota Lain", callback_data="back_prov")])
+        
+        keyboard.append([InlineKeyboardButton("✅ Generate Artikel Sekarang", callback_data="gen_artikel")])
+        
+        if len(selected) > 0:
+            keyboard.append([InlineKeyboardButton("🗑️ Hapus Semua Pilihan", callback_data="clear_cities")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        city_list = "\n".join([f"{i+1}. {c}" for i, c in enumerate(selected)])
+        
+        await query.edit_message_text(
+            f"✅ *Kota dipilih: {city_name}*\n\n"
+            f"📋 *Daftar kota ({len(selected)}/4):*\n{city_list}\n\n"
+            f"{'ℹ️ Pilih maksimal 4 kota' if len(selected) < 4 else '✅ Sudah 4 kota'}",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    # Handle back to provinsi
+    elif data == "back_prov":
+        keyboard = []
+        provinces = city_selector.db.get_all_provinces()
+        
+        for i in range(0, len(provinces), 2):
+            row = []
+            for j in range(2):
+                if i + j < len(provinces):
+                    prov = provinces[i + j]
+                    row.append(InlineKeyboardButton(
+                        prov['name'], 
+                        callback_data=f"prov_{prov['code']}"
+                    ))
+            keyboard.append(row)
+        
+        keyboard.append([InlineKeyboardButton("🎲 Pilih Random", callback_data="artikel_random")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        selected_info = ""
+        if 'selected_cities' in context.user_data and context.user_data['selected_cities']:
+            selected = context.user_data['selected_cities']
+            selected_info = f"\n\n📋 Kota terpilih: {len(selected)}"
+        
+        await query.edit_message_text(
+            f"📍 *Pilih Provinsi:*{selected_info}",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    # Handle clear cities
+    elif data == "clear_cities":
+        context.user_data['selected_cities'] = []
+        
+        keyboard = [[InlineKeyboardButton("« Kembali ke Provinsi", callback_data="back_prov")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🗑️ *Semua pilihan dihapus*\n\nSilakan pilih kota lagi.",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    # Handle generate artikel
+    elif data == "gen_artikel":
+        selected_cities = context.user_data.get('selected_cities', [])
+        
+        if not selected_cities:
+            await query.edit_message_text("❌ Belum ada kota yang dipilih!")
+            return
+        
+        await query.edit_message_text("⏳ Mengambil data cuaca dari BMKG...")
+        
+        try:
+            # Reset city selector
+            city_selector.clear_selected_cities()
+            
+            # Tambahkan kota yang dipilih
+            not_found = []
+            for city_name in selected_cities:
+                if not city_selector.add_specific_city(city_name):
+                    not_found.append(city_name)
+            
+            if not_found:
+                await query.message.reply_text(
+                    f"❌ Kota tidak ditemukan: {', '.join(not_found)}"
+                )
+                return
+            
+            # Jika kurang dari 4, tambahkan random
+            selected = city_selector.get_selected_cities()
+            if len(selected) < 4:
+                remaining = 4 - len(selected)
+                await query.message.reply_text(f"ℹ️ Menambahkan {remaining} kota random...")
+                
+                existing_tz = [info['timezone'] for info in selected.values()]
+                wib_needed = max(0, 2 - existing_tz.count('WIB'))
+                wita_needed = max(0, 1 - existing_tz.count('WITA'))
+                wit_needed = max(0, 1 - existing_tz.count('WIT'))
+                
+                total_needed = wib_needed + wita_needed + wit_needed
+                if total_needed < remaining:
+                    wib_needed += (remaining - total_needed)
+                
+                city_selector.select_random_cities(
+                    total_cities=remaining,
+                    wib_count=wib_needed,
+                    wita_count=wita_needed,
+                    wit_count=wit_needed
+                )
+                
+                selected = city_selector.get_selected_cities()
+            
+            # Ambil data cuaca
+            weather_data = fetch_all_cities_weather(selected)
+            
+            if not weather_data or len(weather_data) < 4:
+                await query.message.reply_text("❌ Gagal mengambil data cuaca dari BMKG.")
+                return
+            
+            # Generate artikel
+            article = generator.generate_article(weather_data)
+            title = generator.generate_title(weather_data)
+            
+            # Enhance dengan AI
+            if ai_generator:
+                try:
+                    await query.message.reply_text("🤖 Meningkatkan artikel dengan AI...")
+                    article, ai_title = ai_generator.enhance_article(article, weather_data)
+                    if ai_title:
+                        title = ai_title
+                except Exception as e:
+                    print(f"AI enhancement failed: {e}")
+            
+            # Kirim hasil
+            escaped_title = escape_markdown(title, version=2)
+            await query.message.reply_text(f"*{escaped_title}*", parse_mode='MarkdownV2')
+            
+            if len(article) > 4000:
+                chunks = [article[i:i+4000] for i in range(0, len(article), 4000)]
+                for chunk in chunks:
+                    await query.message.reply_text(chunk)
+            else:
+                await query.message.reply_text(article)
+            
+            city_list = "\n".join([f"• {name}" for name in weather_data.keys()])
+            await query.message.reply_text(
+                f"📍 *Kota dalam artikel:*\n{city_list}", 
+                parse_mode='Markdown'
+            )
+            
+            # Clear selection
+            context.user_data['selected_cities'] = []
+            
+        except Exception as e:
+            await query.message.reply_text(f"❌ Error: {str(e)}")
+            print(f"Error in generate artikel: {e}")
+    
+    # Handle artikel random
+    elif data == "artikel_random":
+        await query.edit_message_text("⏳ Mengambil data cuaca dari BMKG...")
+        
+        try:
+            initialize_cities(force_new=True)
+            selected_cities = CITY_CODES
+            
+            weather_data = fetch_all_cities_weather(selected_cities)
+            
+            if not weather_data or len(weather_data) < 4:
+                await query.message.reply_text("❌ Gagal mengambil data cuaca.")
+                return
+            
+            article = generator.generate_article(weather_data)
+            title = generator.generate_title(weather_data)
+            
+            if ai_generator:
+                try:
+                    await query.message.reply_text("🤖 Meningkatkan artikel dengan AI...")
+                    article, ai_title = ai_generator.enhance_article(article, weather_data)
+                    if ai_title:
+                        title = ai_title
+                except Exception as e:
+                    print(f"AI enhancement failed: {e}")
+            
+            escaped_title = escape_markdown(title, version=2)
+            await query.message.reply_text(f"*{escaped_title}*", parse_mode='MarkdownV2')
+            
+            if len(article) > 4000:
+                chunks = [article[i:i+4000] for i in range(0, len(article), 4000)]
+                for chunk in chunks:
+                    await query.message.reply_text(chunk)
+            else:
+                await query.message.reply_text(article)
+            
+            city_list = "\n".join([f"• {name}" for name in weather_data.keys()])
+            await query.message.reply_text(
+                f"📍 *Kota dalam artikel:*\n{city_list}",
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await query.message.reply_text(f"❌ Error: {str(e)}")
+            print(f"Error in artikel random: {e}")
+
+
 def main():
     """Fungsi utama untuk menjalankan bot"""
     
@@ -531,6 +813,9 @@ def main():
     application.add_handler(CommandHandler("kota", kota_command))
     application.add_handler(CommandHandler("random", random_command))
     application.add_handler(CommandHandler("stats", stats))
+    
+    # Tambahkan callback query handler untuk button
+    application.add_handler(CallbackQueryHandler(button_callback))
     
     print("✅ Bot siap menerima perintah!")
     print("=" * 60)

@@ -382,6 +382,84 @@ class WilayahDatabase:
                 })
         
         return results
+    
+    def get_all_provinces(self) -> list:
+        """
+        Dapatkan semua provinsi
+        
+        Returns:
+            List dict info provinsi dengan format: [{'code': '11', 'name': 'Aceh'}, ...]
+        """
+        if not self.conn:
+            self.connect()
+        
+        query = """
+            SELECT kode, nama
+            FROM wilayah_2020
+            WHERE LENGTH(kode) = 2
+            ORDER BY nama
+        """
+        
+        self.cursor.execute(query)
+        provinces = []
+        
+        for row in self.cursor.fetchall():
+            provinces.append({
+                'code': row[0],
+                'name': row[1]
+            })
+        
+        return provinces
+    
+    def get_cities_by_province(self, province_code: str) -> list:
+        """
+        Dapatkan semua kota/kabupaten dalam provinsi
+        
+        Args:
+            province_code: Kode provinsi (2 digit)
+            
+        Returns:
+            List dict info kota
+        """
+        if not self.conn:
+            self.connect()
+        
+        query = """
+            SELECT kode, nama
+            FROM wilayah_2020
+            WHERE LENGTH(kode) = 5
+            AND kode LIKE ?
+            AND CAST(SUBSTR(kode, 4, 2) AS INTEGER) >= 71
+            AND (nama LIKE 'KOTA %' OR nama LIKE 'KAB. %')
+            ORDER BY nama
+        """
+        
+        self.cursor.execute(query, (f"{province_code}.%",))
+        cities = []
+        
+        for row in self.cursor.fetchall():
+            kode_kota, nama_kota = row
+            
+            # Ambil kode kelurahan pertama untuk mendapatkan timezone
+            query_kel = """
+                SELECT kode 
+                FROM wilayah_2020 
+                WHERE kode LIKE ? AND LENGTH(kode) >= 13
+                LIMIT 1
+            """
+            self.cursor.execute(query_kel, (f"{kode_kota}.%",))
+            result_kel = self.cursor.fetchone()
+            
+            if result_kel:
+                tz_name, tz_offset = self.get_timezone_info(result_kel[0])
+                cities.append({
+                    'code': result_kel[0],
+                    'name': nama_kota.replace('KAB. ', '').replace('KOTA ', '').title(),
+                    'timezone': tz_name,
+                    'timezone_offset': tz_offset
+                })
+        
+        return cities
 
 
 # Contoh penggunaan
