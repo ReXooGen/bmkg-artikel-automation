@@ -177,30 +177,28 @@ async def artikelkota(update: Update, context: ContextTypes.DEFAULT_TYPE):
     init_components()
     
     if not context.args:
-        # Tampilkan menu pilihan provinsi dengan inline keyboard
-        keyboard = []
-        provinces = city_selector.db.get_all_provinces()
-        
-        # Buat button 2 kolom per row
-        for i in range(0, len(provinces), 2):
-            row = []
-            for j in range(2):
-                if i + j < len(provinces):
-                    prov = provinces[i + j]
-                    row.append(InlineKeyboardButton(
-                        prov['name'], 
-                        callback_data=f"prov_{prov['code']}"
-                    ))
-            keyboard.append(row)
-        
-        # Tambahkan button random
-        keyboard.append([InlineKeyboardButton("🎲 Pilih Random", callback_data="artikel_random")])
+        # Tampilkan menu pilihan timezone terlebih dahulu
+        keyboard = [
+            [
+                InlineKeyboardButton("🌅 WIB (Jawa, Sumatra)", callback_data="tz_WIB"),
+                InlineKeyboardButton("🌄 WITA (Kalimantan, Sulawesi)", callback_data="tz_WITA")
+            ],
+            [
+                InlineKeyboardButton("🌇 WIT (Papua, Maluku)", callback_data="tz_WIT"),
+                InlineKeyboardButton("🌏 Semua Zona", callback_data="tz_ALL")
+            ],
+            [InlineKeyboardButton("🎲 Pilih Random", callback_data="artikel_random")]
+        ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            "📍 *Pilih Provinsi:*\n\n"
-            "Pilih provinsi untuk melihat daftar kota,\n"
-            "atau ketik: `/artikelkota [nama kota]`",
+            "🕐 *Pilih Zona Waktu:*\n\n"
+            "Pilih zona waktu untuk melihat provinsi,\n"
+            "atau ketik: `/artikelkota [nama kota]`\n\n"
+            "📌 *Zona Waktu Indonesia:*\n"
+            "• WIB (UTC+7): Jawa, Sumatra, Kalimantan Barat\n"
+            "• WITA (UTC+8): Kalimantan Tengah-Timur, Sulawesi, Bali, NTB, NTT\n"
+            "• WIT (UTC+9): Papua, Maluku",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
@@ -528,6 +526,63 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     data = query.data
     
+    # Handle pilih timezone
+    if data.startswith("tz_"):
+        timezone = data.split("_")[1]
+        
+        # Simpan timezone filter ke context
+        context.user_data['timezone_filter'] = timezone if timezone != "ALL" else None
+        
+        # Ambil semua provinsi
+        all_provinces = city_selector.db.get_all_provinces()
+        
+        # Filter provinsi berdasarkan timezone
+        if timezone == "ALL":
+            provinces = all_provinces
+        else:
+            # Filter berdasarkan mapping timezone
+            tz_mapping = city_selector.db.timezone_mapping
+            provinces = [p for p in all_provinces if tz_mapping.get(p['code'], ('', 0))[0] == timezone]
+        
+        if not provinces:
+            await query.edit_message_text(f"❌ Tidak ada provinsi di zona {timezone}")
+            return
+        
+        # Buat keyboard untuk provinsi
+        keyboard = []
+        for i in range(0, len(provinces), 2):
+            row = []
+            for j in range(2):
+                if i + j < len(provinces):
+                    prov = provinces[i + j]
+                    row.append(InlineKeyboardButton(
+                        prov['name'], 
+                        callback_data=f"prov_{prov['code']}"
+                    ))
+            keyboard.append(row)
+        
+        # Tambahkan button kembali dan random
+        keyboard.append([
+            InlineKeyboardButton("« Kembali ke Zona Waktu", callback_data="back_timezone"),
+            InlineKeyboardButton("🎲 Random", callback_data="artikel_random")
+        ])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        tz_name = {
+            'WIB': 'WIB (UTC+7)',
+            'WITA': 'WITA (UTC+8)',
+            'WIT': 'WIT (UTC+9)',
+            'ALL': 'Semua Zona'
+        }.get(timezone, timezone)
+        
+        await query.edit_message_text(
+            f"📍 *Pilih Provinsi - {tz_name}:*\n\n"
+            f"Total: {len(provinces)} provinsi",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
     # Handle pilih provinsi
     if data.startswith("prov_"):
         province_code = data.split("_")[1]
@@ -602,9 +657,19 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Handle back to provinsi
     elif data == "back_prov":
-        keyboard = []
-        provinces = city_selector.db.get_all_provinces()
+        # Cek apakah ada timezone filter
+        timezone_filter = context.user_data.get('timezone_filter', None)
         
+        all_provinces = city_selector.db.get_all_provinces()
+        
+        # Filter provinsi jika ada timezone filter
+        if timezone_filter:
+            tz_mapping = city_selector.db.timezone_mapping
+            provinces = [p for p in all_provinces if tz_mapping.get(p['code'], ('', 0))[0] == timezone_filter]
+        else:
+            provinces = all_provinces
+        
+        keyboard = []
         for i in range(0, len(provinces), 2):
             row = []
             for j in range(2):
@@ -616,7 +681,48 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ))
             keyboard.append(row)
         
-        keyboard.append([InlineKeyboardButton("🎲 Pilih Random", callback_data="artikel_random")])
+        keyboard.append([
+            InlineKeyboardButton("« Kembali ke Zona Waktu", callback_data="back_timezone"),
+            InlineKeyboardButton("🎲 Random", callback_data="artikel_random")
+        ])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        selected_info = ""
+        if 'selected_cities' in context.user_data and context.user_data['selected_cities']:
+            selected = context.user_data['selected_cities']
+            selected_info = f"\n\n📋 Kota terpilih: {len(selected)}"
+        
+        tz_info = ""
+        if timezone_filter:
+            tz_name = {
+                'WIB': 'WIB (UTC+7)',
+                'WITA': 'WITA (UTC+8)',
+                'WIT': 'WIT (UTC+9)'
+            }.get(timezone_filter, timezone_filter)
+            tz_info = f" - {tz_name}"
+        
+        await query.edit_message_text(
+            f"📍 *Pilih Provinsi{tz_info}:*{selected_info}",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    # Handle back to timezone
+    elif data == "back_timezone":
+        context.user_data['timezone_filter'] = None
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("🌅 WIB (Jawa, Sumatra)", callback_data="tz_WIB"),
+                InlineKeyboardButton("🌄 WITA (Kalimantan, Sulawesi)", callback_data="tz_WITA")
+            ],
+            [
+                InlineKeyboardButton("🌇 WIT (Papua, Maluku)", callback_data="tz_WIT"),
+                InlineKeyboardButton("🌏 Semua Zona", callback_data="tz_ALL")
+            ],
+            [InlineKeyboardButton("🎲 Pilih Random", callback_data="artikel_random")]
+        ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -626,7 +732,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             selected_info = f"\n\n📋 Kota terpilih: {len(selected)}"
         
         await query.edit_message_text(
-            f"📍 *Pilih Provinsi:*{selected_info}",
+            f"🕐 *Pilih Zona Waktu:*{selected_info}\n\n"
+            "📌 *Zona Waktu Indonesia:*\n"
+            "• WIB (UTC+7): Jawa, Sumatra, Kalimantan Barat\n"
+            "• WITA (UTC+8): Kalimantan Tengah-Timur, Sulawesi, Bali, NTB, NTT\n"
+            "• WIT (UTC+9): Papua, Maluku",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
