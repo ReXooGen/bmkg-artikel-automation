@@ -81,7 +81,14 @@ def create_app():
         most_active = db.get_most_active_users(limit=10)
         recent_activity = db.get_recent_activity(limit=20)
         
-        webhook_url = os.getenv('WEBHOOK_URL', 'https://bmkg-artikel.vercel.app')
+        # Determine Webhook URL intelligently
+        if IS_VERCEL:
+            # Use the request host to determine the URL dynamically
+            scheme = request.headers.get('X-Forwarded-Proto', 'https')
+            host = request.headers.get('Host', request.host)
+            webhook_url = f"{scheme}://{host}"
+        else:
+            webhook_url = os.getenv('WEBHOOK_URL', 'http://localhost:5000')
         
         return render_template('index.html',
                              bot_name=BOT_NAME,
