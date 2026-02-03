@@ -20,30 +20,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize Telegram App (Lazy loading)
-telegram_app = None
-telegram_app_loop = None
-
-def get_tel_app():
-    global telegram_app, telegram_app_loop
-    
-    # Get current event loop
-    try:
-        current_loop = asyncio.get_event_loop()
-    except RuntimeError:
-        current_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(current_loop)
-    
-    # Reinitialize if loop has changed (important for serverless)
-    if telegram_app is None or telegram_app_loop != current_loop:
-        try:
-            telegram_app = get_telegram_app()
-            telegram_app_loop = current_loop
-            logger.info("Telegram app initialized/refreshed")
-        except Exception as e:
-            logger.error(f"Failed to init Telegram app: {e}")
-            
-    return telegram_app
+# Initialize Telegram App (Lazy loading) - Removed global caching to prevent event loop issues
+# telegram_app = None
+# telegram_app_loop = None
 
 def create_app():
     """Create and configure Flask app"""
@@ -60,8 +39,11 @@ def create_app():
     # Secret key for sessions
     app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
     
+    # Check for Vercel environment to warn about persistence
+    IS_VERCEL = os.environ.get('VERCEL') == '1'
+    
     # Admin password from environment or default
-    ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'lukagataupasswordnya')
+    ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'bmkg2026')
     
     # Initialize database
     db = UserDatabase()
@@ -107,7 +89,8 @@ def create_app():
                              total_users=total_users,
                              all_users=all_users,
                              most_active=most_active,
-                             recent_activity=recent_activity)
+                             recent_activity=recent_activity,
+                             is_vercel=IS_VERCEL) # Pass persistence warning flag
     
     # Add health check endpoint
     @app.route('/health')
@@ -117,45 +100,52 @@ def create_app():
     # Telegram Webhook Endpoint
     @app.route('/telegram', methods=['POST'])
     def telegram_webhook():
-        application = get_tel_app()
-        if not application:
-            return {"error": "Telegram bot not configured"}, 500
-            
         try:
             # Retrieve the JSON data from the request
             data = request.get_json(force=True)
-            # Decode the update from JSON
-            update = Update.de_json(data, application.bot)
-            
-            # Process the update with fresh event loop per request
-            async def process_update_async():
-                try:
-                    # Initialize application just in case
-                    if not application._initialized:
-                        await application.initialize()
-                    await application.process_update(update)
-                finally:
-                    # Shutdown application to close httpx client and release loop binding
-                    # This ensures next request can re-initialize with new loop
-                    if application._initialized:
-                        await application.shutdown()
-            
+            if not data:
+                return {"error": "No JSON data received"}, 400
+
             # Create fresh event loop for each webhook request
-            # This prevents event loop binding issues in serverless
+            # This is crucial for Vercel Serverless environment
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
+            async def process_update_async():
+                try:
+                    # Create NEW application instance per request
+                    # This ensures HTTPX client attaches to the CURRENT loop
+                    app_instance = get_telegram_app()
+                    if not app_instance:
+                        logger.error("Failed to create telegram app")
+                        return
+
+                    # Initialize app to setup http client
+                    await app_instance.initialize()
+                    
+                    # Process Update
+                    update = Update.de_json(data, app_instance.bot)
+                    await app_instance.process_update(update)
+                    
+                except Exception as e:
+                    logger.error(f"Error inside async process: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+                finally:
+                    # Always shutdown to close http client and free loop binding
+                    if 'app_instance' in locals() and app_instance and app_instance._initialized:
+                        await app_instance.shutdown()
+
             try:
-                # Run and wait for completion
                 loop.run_until_complete(process_update_async())
             finally:
-                # Clean up but don't close the loop to avoid httpx issues
-                # Let Python garbage collector handle it
+                loop.close()
                 asyncio.set_event_loop(None)
             
             return {"status": "ok"}
+            
         except Exception as e:
-            logger.error(f"Telegram webhook error: {e}")
+            logger.error(f"Telegram webhook fatal error: {e}")
             import traceback
             logger.error(traceback.format_exc())
             return {"error": str(e)}, 500
