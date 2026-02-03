@@ -43,6 +43,15 @@ class BMKGWeatherAPI:
                     for day_data in data['data'][0]['cuaca']:
                         if isinstance(day_data, list):
                             weather_list.extend(day_data)
+                
+                # Validate that weather_list has data
+                if not weather_list:
+                    location_info = data['data'][0].get('lokasi', {})
+                    location_name = location_info.get('kotkab', 'Unknown')
+                    print(f"⚠️  Data cuaca tidak tersedia untuk {location_name} (kode: {city_code})")
+                    print(f"   API mengembalikan array cuaca kosong. Wilayah ini mungkin tidak didukung BMKG.")
+                    return None
+                    
                 return weather_list
             else:
                 print(f"Data tidak ditemukan untuk kode: {city_code}")
@@ -134,12 +143,13 @@ class BMKGWeatherAPI:
         }
 
 
-def fetch_all_cities_weather(city_configs: Dict) -> Dict[str, Dict]:
+def fetch_all_cities_weather(city_configs: Dict, auto_replace_failed: bool = True) -> Dict[str, Dict]:
     """
-    Mengambil data cuaca untuk semua kota
+    Mengambil data cuaca untuk semua kota dengan auto-replacement untuk kota yang gagal
     
     Args:
         city_configs: Dictionary konfigurasi kota dari config_db.py
+        auto_replace_failed: Jika True, otomatis ganti kota yang gagal dengan kota lain dari timezone sama
         
     Returns:
         Dictionary dengan nama kota sebagai key dan data cuaca sebagai value
@@ -149,6 +159,7 @@ def fetch_all_cities_weather(city_configs: Dict) -> Dict[str, Dict]:
     DEFAULT_TARGET_HOUR = 6  # Default jam 6 pagi
     api = BMKGWeatherAPI(BMKG_API_BASE_URL)
     results = {}
+    failed_cities = []
     
     for city_name, config in city_configs.items():
         print(f"Mengambil data cuaca untuk {city_name}...")
@@ -169,9 +180,71 @@ def fetch_all_cities_weather(city_configs: Dict) -> Dict[str, Dict]:
             }
             print(f"✓ Data {city_name} berhasil diambil")
         else:
-            print(f"✗ Gagal mengambil data {city_name}")
+            print(f"✗ Gagal mengambil data {city_name} - Data tidak tersedia dari API BMKG")
+            failed_cities.append({'name': city_name, 'timezone': config['timezone'], 'timezone_offset': config['timezone_offset']})
         
         # Rate limiting - tunggu sebentar antar request
         time.sleep(1.5)
+    
+    # Auto-replacement untuk kota yang gagal
+    if auto_replace_failed and failed_cities:
+        try:
+            from city_selector_db import CitySelector
+            
+            print(f"\n⚙️  Auto-replacement: {len(failed_cities)} kota gagal, mencari pengganti...")
+            selector = CitySelector()
+            selector.connect()
+            
+            # Track kota yang sudah dicoba untuk menghindari loop
+            attempted_cities = set(city_configs.keys())
+            
+            for failed_city in failed_cities:
+                timezone = failed_city['timezone']
+                timezone_offset = failed_city['timezone_offset']
+                max_replacement_tries = 5
+                
+                for attempt in range(max_replacement_tries):
+                    # Pilih kota random dari timezone yang sama
+                    replacement_cities = selector.db.get_random_cities(1, timezone)
+                    
+                    if not replacement_cities:
+                        print(f"⚠️  Tidak ada kota pengganti untuk {timezone}")
+                        break
+                    
+                    replacement = replacement_cities[0]
+                    replacement_name = replacement['name']
+                    
+                    # Skip jika kota sudah pernah dicoba
+                    if replacement_name in attempted_cities:
+                        continue
+                    
+                    attempted_cities.add(replacement_name)
+                    
+                    print(f"  🔄 Mencoba {replacement_name} sebagai pengganti {failed_city['name']}...")
+                    
+                    # Coba ambil data cuaca untuk kota pengganti
+                    weather_data = api.get_city_weather(
+                        replacement['code'],
+                        DEFAULT_TARGET_HOUR,
+                        timezone_offset
+                    )
+                    
+                    if weather_data:
+                        results[replacement_name] = {
+                            **weather_data,
+                            'timezone': timezone,
+                            'target_hour': DEFAULT_TARGET_HOUR
+                        }
+                        print(f"  ✓ {replacement_name} berhasil! Menggantikan {failed_city['name']}")
+                        break
+                    else:
+                        print(f"  ✗ {replacement_name} juga gagal, mencoba kota lain...")
+                    
+                    time.sleep(1.5)
+            
+            selector.close()
+            
+        except Exception as e:
+            print(f"⚠️  Error saat auto-replacement: {e}")
     
     return results

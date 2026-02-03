@@ -19,15 +19,27 @@ class CitySelector:
         Args:
             db_path: Path ke database SQLite wilayah
         """
-        self.db = WilayahDatabase(db_path)
+        # Adaptation for Vercel (Read-only System)
+        if os.environ.get('VERCEL') == '1':
+            # Use /tmp directory in Vercel
+            self.db_path = os.path.join('/tmp', os.path.basename(db_path))
+            print(f"Running in Vercel environment. Using database at: {self.db_path}")
+        else:
+            self.db_path = db_path
+
+        self.db = WilayahDatabase(self.db_path)
         
         # Inisialisasi database jika belum ada
-        if not os.path.exists(db_path):
+        if not os.path.exists(self.db_path):
             print("Database tidak ditemukan. Mengimport dari SQL...")
             self.db.import_from_sql("wilayah_2020.sql")
         
         self.db.connect()
         self.selected_cities = {}
+    
+    def connect(self):
+        """Koneksi ke database (helper method untuk kompatibilitas)"""
+        return self.db.connect()
     
     def select_random_cities(self, 
                            total_cities: int = 5,
@@ -87,18 +99,25 @@ class CitySelector:
         
         return self.selected_cities
     
-    def add_specific_city(self, city_name: str) -> bool:
+    def add_specific_city(self, city_name: str, validate_api: bool = False) -> bool:
         """
         Tambahkan kota spesifik berdasarkan nama
         
         Args:
             city_name: Nama kota yang ingin ditambahkan
+            validate_api: Jika True, validasi bahwa kota memiliki data di BMKG API
         
         Returns:
-            True jika berhasil, False jika kota tidak ditemukan
+            True jika berhasil, False jika kota tidak ditemukan atau tidak ada data
         """
         city = self.db.get_city_by_name(city_name)
         if city:
+            # Validasi API jika diminta
+            if validate_api:
+                if not self.validate_city_has_data(city['code']):
+                    print(f"⚠️  {city['name']} ditemukan tapi tidak ada data cuaca di API BMKG")
+                    return False
+            
             self.selected_cities[city['name']] = {
                 'code': city['code'],
                 'timezone': city['timezone'],
@@ -106,6 +125,39 @@ class CitySelector:
             }
             return True
         return False
+    
+    def validate_city_has_data(self, city_code: str) -> bool:
+        """
+        Validasi apakah kota memiliki data cuaca di API BMKG
+        
+        Args:
+            city_code: Kode wilayah kota
+            
+        Returns:
+            True jika ada data, False jika tidak ada
+        """
+        try:
+            import requests
+            url = f"https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4={city_code}"
+            response = requests.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data and 'data' in data and len(data['data']) > 0:
+                    cuaca = data['data'][0].get('cuaca', [])
+                    # Check if cuaca has actual data
+                    weather_count = 0
+                    if isinstance(cuaca, list):
+                        for day in cuaca:
+                            if isinstance(day, list):
+                                weather_count += len(day)
+                            else:
+                                weather_count += 1
+                    return weather_count > 0
+            return False
+        except Exception as e:
+            print(f"Error validating city data: {e}")
+            return False
     
     def get_selected_cities(self) -> Dict[str, Dict]:
         """Return kota yang sudah dipilih"""

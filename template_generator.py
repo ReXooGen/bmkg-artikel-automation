@@ -70,7 +70,7 @@ class WeatherArticleGenerator:
     
     def generate_title(self, weather_data: Dict[str, Dict]) -> str:
         """
-        Generate judul artikel berita yang menarik
+        Generate judul artikel berita yang menarik dengan prioritas cuaca menarik
         
         Args:
             weather_data: Dictionary berisi data cuaca untuk setiap kota
@@ -80,51 +80,66 @@ class WeatherArticleGenerator:
         """
         cities = list(weather_data.keys())
         
-        # Ambil data kota-kota
-        city1_name = cities[0]
-        city1_data = weather_data[city1_name]
-        city1_weather = city1_data['weather']
+        # Parse datetime jika masih string
+        first_city_datetime = weather_data[cities[0]]['datetime']
+        if isinstance(first_city_datetime, str):
+            from dateutil import parser
+            first_city_datetime = parser.parse(first_city_datetime)
         
-        city2_name = cities[1] if len(cities) > 1 else None
-        city2_data = weather_data[city2_name] if city2_name else None
-        city2_weather = city2_data['weather'] if city2_data else ""
+        # Format datetime object ke string
+        months = {
+            1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
+            5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
+            9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+        }
+        date_str = f"{first_city_datetime.day} {months[first_city_datetime.month]} {first_city_datetime.year}"
         
-        city3_name = cities[2] if len(cities) > 2 else None
+        # Cari kota dengan cuaca paling menarik/ekstrem
+        priority_cities = []
         
-        date_str = self.get_formatted_date(city1_data['datetime'])
-        day_name = self.get_day_name(city1_data['datetime'])
+        # 1. Prioritas tertinggi: Hujan lebat/petir
+        for city in cities:
+            weather = weather_data[city]['weather'].lower()
+            if 'petir' in weather or 'lebat' in weather:
+                priority_cities.append((city, weather_data[city], 'ekstrem'))
         
-        # Generate judul dengan berbagai variasi yang menarik
-        title_variations = [
-            # Format 1: Fokus kota pertama + kota kedua
-            f"BMKG: Cuaca Kota {city1_name} {date_str} Diprakirakan {city1_weather}, {city2_name} {city2_weather}" if city2_name else None,
+        # 2. Prioritas menengah: Hujan ringan/sedang
+        if not priority_cities:
+            for city in cities:
+                weather = weather_data[city]['weather'].lower()
+                if 'hujan' in weather:
+                    priority_cities.append((city, weather_data[city], 'hujan'))
+        
+        # 3. Prioritas rendah: Cuaca cerah/berawan di kota pertama
+        if not priority_cities:
+            priority_cities.append((cities[0], weather_data[cities[0]], 'normal'))
+        
+        # Pilih kota utama (yang paling menarik)
+        main_city = priority_cities[0][0]
+        main_weather = weather_data[main_city]['weather']
+        
+        # Cari 1-2 kota lain dengan cuaca kontras
+        other_cities = []
+        for city in cities:
+            if city != main_city:
+                other_cities.append((city, weather_data[city]['weather']))
+        
+        # Format judul dengan kota utama + 1-2 kota lain
+        if len(other_cities) >= 2:
+            # Pilih 2 kota dengan cuaca paling berbeda
+            city2_name, city2_weather = other_cities[0]
+            city3_name, city3_weather = other_cities[1]
             
-            # Format 2: Tanggal di depan + 2 kota
-            f"Prakiraan Cuaca {date_str}: {city1_name} {city1_weather}, {city2_name} {city2_weather}" if city2_name else None,
-            
-            # Format 3: Hari + fokus kondisi cuaca
-            f"Cuaca {day_name}: BMKG Prakirakan {city1_name} {city1_weather}, Begini {city2_name}" if city2_name else None,
-            
-            # Format 4: Alert style untuk hujan
-            f"BMKG Hari Ini: {city1_name} {city1_weather}, Waspada di {city2_name}" if city2_name and 'hujan' in city1_weather.lower() else None,
-            
-            # Format 5: Multiple cities
-            f"Prakiraan Cuaca BMKG {date_str}: {city1_name} {city1_weather}, {city2_name} {city2_weather}" if city2_name else None,
-        ]
-        
-        # Filter None dan pilih yang paling sesuai
-        valid_titles = [t for t in title_variations if t is not None]
-        
-        # Pilih berdasarkan kondisi cuaca
-        if 'hujan' in city1_weather.lower():
-            # Prioritas format alert untuk hujan
-            title = valid_titles[3] if len(valid_titles) > 3 else valid_titles[0]
-        elif city3_name:
-            # Jika ada 3 kota, gunakan format yang lebih ringkas
-            title = f"BMKG: Cuaca {city1_name} {date_str} Diprakirakan {city1_weather}, {city2_name} {city2_weather}"
+            # Jika kota ke-2 dan ke-3 mirip, gabungkan
+            if city2_weather.lower() == city3_weather.lower():
+                title = f"BMKG: Cuaca Kota {main_city} {date_str} Diprakirakan {main_weather}, Sejumlah Kota Lainnya {city2_weather}"
+            else:
+                title = f"BMKG: Cuaca Kota {main_city} {date_str} Diprakirakan {main_weather}, {city2_name} {city2_weather}"
+        elif len(other_cities) == 1:
+            city2_name, city2_weather = other_cities[0]
+            title = f"BMKG: Cuaca Kota {main_city} {date_str} Diprakirakan {main_weather}, {city2_name} {city2_weather}"
         else:
-            # Default: gunakan format pertama yang paling mirip dengan contoh
-            title = valid_titles[0] if valid_titles else f"Prakiraan Cuaca {date_str}"
+            title = f"BMKG: Cuaca Kota {main_city} {date_str} Diprakirakan {main_weather}"
         
         return title
     

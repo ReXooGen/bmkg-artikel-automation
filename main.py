@@ -56,7 +56,8 @@ def main():
     print("-" * 60)
     
     try:
-        weather_data = fetch_all_cities_weather(CITY_CODES)
+        # Auto-replace failed cities dengan kota lain dari timezone yang sama
+        weather_data = fetch_all_cities_weather(CITY_CODES, auto_replace_failed=True)
         
         if not weather_data or len(weather_data) < 4:
             print("\n✗ Error: Tidak semua data kota berhasil diambil")

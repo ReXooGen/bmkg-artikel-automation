@@ -139,18 +139,18 @@ else:
 
 # Mapping kondisi cuaca Indonesia ke format yang lebih natural
 WEATHER_MAPPING = {
-    "Cerah": "cerah",
-    "Cerah Berawan": "cerah berawan",
-    "Berawan": "berawan",
-    "Berawan Tebal": "berawan tebal",
-    "Udara Kabur": "udara kabur",
-    "Asap": "berasap",
-    "Hujan Ringan": "hujan ringan",
-    "Hujan Sedang": "hujan sedang",
-    "Hujan Lebat": "hujan lebat",
-    "Hujan Lokal": "hujan lokal",
-    "Hujan Petir": "hujan petir",
-    "Kabut": "berkabut"
+    "Cerah": "normal",
+    "Cerah Berawan": "normal",
+    "Berawan": "normal",
+    "Berawan Tebal": "waspada",
+    "Udara Kabur": "waspada",
+    "Asap": "waspada",
+    "Kabut": "waspada",
+    "Hujan Ringan": "normal",
+    "Hujan Sedang": "waspada",
+    "Hujan Lokal": "waspada",
+    "Hujan Lebat": "ekstrem",
+    "Hujan Petir": "ekstrem"
 }
 
 # Target waktu untuk semua kota (jam lokal pagi hari)
