@@ -143,6 +143,24 @@ class BMKGWeatherAPI:
         }
 
 
+def fetch_city_weather(city_code: str, timezone_offset: int, target_hour: int = 6) -> Optional[Dict]:
+    """
+    Mengambil data cuaca untuk satu kota
+    
+    Args:
+        city_code: Kode wilayah kota
+        timezone_offset: Offset timezone (7 untuk WIB, 8 untuk WITA, 9 untuk WIT)
+        target_hour: Jam target (default jam 6 pagi)
+        
+    Returns:
+        Dictionary data cuaca atau None jika gagal
+    """
+    from config_db import BMKG_API_BASE_URL
+    
+    api = BMKGWeatherAPI(BMKG_API_BASE_URL)
+    return api.get_city_weather(city_code, target_hour, timezone_offset)
+
+
 def fetch_all_cities_weather(city_configs: Dict, auto_replace_failed: bool = True) -> Dict[str, Dict]:
     """
     Mengambil data cuaca untuk semua kota dengan auto-replacement untuk kota yang gagal
