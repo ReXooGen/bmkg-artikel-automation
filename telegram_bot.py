@@ -438,6 +438,11 @@ async def artikelkota(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"{'='*60}\n")
     
     if not context.args:
+        # Initialize context untuk interactive mode
+        context.user_data['selected_cities'] = []
+        context.user_data['city_times'] = {}
+        context.user_data['timezone_filter'] = None
+        
         # Tampilkan menu pilihan timezone terlebih dahulu
         keyboard = [
             [
@@ -1670,6 +1675,12 @@ Data dari BMKG Indonesia 🇮🇩
         
         # Simpan timezone filter ke context
         context.user_data['timezone_filter'] = timezone if timezone != "ALL" else None
+        
+        # Initialize selected_cities dan city_times jika belum ada
+        if 'selected_cities' not in context.user_data:
+            context.user_data['selected_cities'] = []
+        if 'city_times' not in context.user_data:
+            context.user_data['city_times'] = {}
         
         # Ambil semua provinsi
         all_provinces = city_selector.db.get_all_provinces()
