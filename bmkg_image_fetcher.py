@@ -19,7 +19,12 @@ class BMKGImageFetcher:
         Args:
             save_dir: Directory untuk menyimpan gambar
         """
-        self.save_dir = save_dir
+        # Use /tmp in Vercel environment
+        if os.environ.get('VERCEL') == '1':
+            self.save_dir = os.path.join('/tmp', os.path.basename(save_dir))
+        else:
+            self.save_dir = save_dir
+            
         self.base_url = "https://inderaja.bmkg.go.id"
         
         # URL gambar yang tersedia
@@ -28,7 +33,11 @@ class BMKGImageFetcher:
         }
         
         # Create directory if not exists
-        Path(self.save_dir).mkdir(parents=True, exist_ok=True)
+        try:
+            Path(self.save_dir).mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # If we can't create directory, use /tmp as fallback
+            self.save_dir = '/tmp'
         
         # File untuk menyimpan hash gambar terakhir
         self.hash_file = os.path.join(self.save_dir, "image_hashes.txt")
