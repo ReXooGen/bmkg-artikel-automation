@@ -48,17 +48,18 @@ def create_app():
     # Update template folder
     app.template_folder = template_dir
     
+    # Override the root route for dashboard (PyWa uses it for webhook by default)
+    @app.route('/', methods=['GET'])
+    def dashboard():
+        """Dashboard route - override PyWa's webhook verification"""
+        return render_template('index.html', 
+                             bot_name=BOT_NAME, 
+                             webhook_url=WEBHOOK_URL)
+    
     # Add health check endpoint
     @app.route('/health')
     def health():
         return {"status": "ok", "bot": BOT_NAME}
-    
-    # Add info endpoint
-    @app.route('/')
-    def info():
-        return render_template('index.html', 
-                             bot_name=BOT_NAME, 
-                             webhook_url=WEBHOOK_URL)
 
     # Telegram Webhook Endpoint
     @app.route('/telegram', methods=['POST'])

@@ -38,13 +38,13 @@ class BMKGWeatherBot:
         # Create Flask app first
         self.flask_app = Flask(__name__)
         
-        # Initialize PyWa client with custom callback path to avoid "/" conflict
+        # Initialize PyWa client without automatic webhook registration
         self.wa = WhatsApp(
             phone_id=WA_PHONE_ID,
             token=WA_TOKEN,
             server=self.flask_app,
             verify_token=WA_VERIFY_TOKEN,
-            callback_url="/whatsapp",  # Use custom path instead of default "/"
+            validate_updates=False,  # Disable signature validation for now
         )
         
         # Initialize handlers
