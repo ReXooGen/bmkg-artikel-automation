@@ -75,15 +75,19 @@ def create_app():
                 if not application._initialized:
                     await application.initialize()
                 await application.process_update(update)
-                # optionally await application.shutdown() if truly stateless, 
-                # but might verify connection close. 
-                # For Vercel, simpler is often better.
             
-            # Run async loop
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # Run async code without closing event loop prematurely
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_closed():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            # Run and wait for completion, but don't close loop
             loop.run_until_complete(process_update_async())
-            loop.close()
             
             return {"status": "ok"}
         except Exception as e:
