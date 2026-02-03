@@ -32,7 +32,8 @@ class CitySelector:
         # Inisialisasi database jika belum ada
         if not os.path.exists(self.db_path):
             print("Database tidak ditemukan. Mengimport dari SQL...")
-            self.db.import_from_sql("wilayah_2020.sql")
+            self.db.import_from_sql("wilayah_2020.sql") # Use relative path since it's likely in root
+
         
         self.db.connect()
         self.selected_cities = {}
