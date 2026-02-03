@@ -1697,20 +1697,29 @@ Data dari BMKG Indonesia 🇮🇩
     if data.startswith("tz_"):
         timezone = data.split("_")[1]
         
-        # Simpan timezone filter ke context
-        context.user_data['timezone_filter'] = timezone if timezone != "ALL" else None
-        
-        # Load session from DB if context is empty
-        if 'selected_cities' not in context.user_data and user_db:
+        # Load session from DB first
+        if user_db and 'selected_cities' not in context.user_data:
             session_data = user_db.get_session(query.from_user.id)
             if session_data:
                 context.user_data.update(session_data)
         
+        # Set timezone filter (overwrite session value if any)
+        context.user_data['timezone_filter'] = timezone if timezone != "ALL" else None
+
         # Initialize selected_cities dan city_times jika belum ada
         if 'selected_cities' not in context.user_data:
             context.user_data['selected_cities'] = []
         if 'city_times' not in context.user_data:
             context.user_data['city_times'] = {}
+            
+        # --- SAVE SESSION ---
+        if user_db:
+            try:
+                user_db.update_session(query.from_user.id, context.user_data)
+                logger.info(f"💾 Session saved for user {query.from_user.id} (TZ: {timezone})")
+            except Exception as e:
+                logger.error(f"Failed to save session: {e}")
+        # --------------------
         
         # Ambil semua provinsi
         all_provinces = city_selector.db.get_all_provinces()
