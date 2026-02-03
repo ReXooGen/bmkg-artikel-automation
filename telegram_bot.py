@@ -1510,7 +1510,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         # Format tanggal yang dipilih
-        target_date = datetime.now() + timedelta(days=days_offset)
+        # Fix: Use WIB (UTC+7)
+        target_date = (datetime.utcnow() + timedelta(hours=7)) + timedelta(days=days_offset)
         date_str = target_date.strftime('%d %B %Y')
         
         await query.edit_message_text(
@@ -1556,7 +1557,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Format hasil dengan error handling
             try:
                 # Gunakan tanggal yang dipilih user dari context
-                now = datetime.now()
+                # Fix: Use WIB (UTC+7)
+                now = datetime.utcnow() + timedelta(hours=7)
                 days_offset = context.user_data.get('cuaca_days_offset', 0)
                 
                 # Buat datetime berdasarkan pilihan user
@@ -1579,7 +1581,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     day_name = generator.get_day_name(dt_str)
                     formatted_date = generator.get_formatted_date(dt_str)
                 else:
-                    dt = datetime.now()
+                    dt = datetime.utcnow() + timedelta(hours=7)
                     dt_str = dt.strftime('%Y-%m-%d %H:%M:%S')
                     day_name = generator.get_day_name(dt_str)
                     formatted_date = generator.get_formatted_date(dt_str)
