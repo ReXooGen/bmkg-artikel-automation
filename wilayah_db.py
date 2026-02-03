@@ -71,7 +71,9 @@ class WilayahDatabase:
     def connect(self):
         """Buka koneksi ke database"""
         try:
-            self.conn = sqlite3.connect(self.db_path)
+            # check_same_thread=False is needed for Vercel/Serverless where 
+            # objects might be shared across event loops/threads
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self.cursor = self.conn.cursor()
             return True
         except sqlite3.Error as e:
