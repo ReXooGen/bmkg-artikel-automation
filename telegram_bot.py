@@ -2158,22 +2158,15 @@ Data dari BMKG Indonesia 🇮🇩
             print(f"Error in artikel random: {e}")
 
 
-def main():
-    """Fungsi utama untuk menjalankan bot"""
+def get_telegram_app():
+    """Create and configure Telegram Application for Webhook"""
+    init_components()
     
-    # Ambil token dari environment variable
     token = os.getenv('TELEGRAM_BOT_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID', '')
-    
     if not token:
-        print("❌ Error: TELEGRAM_BOT_TOKEN tidak ditemukan di .env file")
-        print("Silakan tambahkan TELEGRAM_BOT_TOKEN ke file .env")
-        sys.exit(1)
-    
-    print("🤖 Starting BMKG Weather Telegram Bot...")
-    print("=" * 60)
-    
-    # Buat aplikasi bot dengan konfigurasi network yang lebih robust
+        logger.error("TELEGRAM_BOT_TOKEN tidak ditemukan!")
+        return None
+        
     application = (
         Application.builder()
         .token(token)
@@ -2203,6 +2196,27 @@ def main():
     # Register error handler
     application.add_error_handler(error_handler)
     
+    return application
+
+
+def main():
+    """Fungsi utama untuk menjalankan bot"""
+    
+    # Ambil token dari environment variable
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID', '')
+    
+    if not token:
+        print("❌ Error: TELEGRAM_BOT_TOKEN tidak ditemukan di .env file")
+        print("Silakan tambahkan TELEGRAM_BOT_TOKEN ke file .env")
+        sys.exit(1)
+    
+    print("🤖 Starting BMKG Weather Telegram Bot...")
+    print("=" * 60)
+    
+    # Buat aplikasi via helper
+    application = get_telegram_app()
+    
     # Start scheduler untuk auto-check gambar
     if chat_id:
         print("\n📅 Starting image scheduler...")
@@ -2218,6 +2232,7 @@ def main():
     print("=" * 60)
     print("\nCommand yang tersedia:")
     print("  /start       - Mulai bot")
+    # ... rest of print statements inherited from original main ...
     print("  /help        - Bantuan")
     print("  /artikel     - Generate artikel cuaca random")
     print("  /artikelkota - Generate artikel dengan kota pilihan")
