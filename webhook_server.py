@@ -2,13 +2,15 @@
 Flask Webhook Server untuk Telegram Bot
 """
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session, redirect, url_for, flash
 from telegram import Update
 import asyncio
 import os
+import secrets
 
 from telegram_bot import get_telegram_app
 from bot_config import BOT_NAME
+from database import UserDatabase
 import logging
 
 # Setup logging
@@ -42,14 +44,57 @@ def create_app():
     # Create Flask app
     app = Flask(__name__, template_folder=template_dir)
     
-    # Dashboard route
+    # Secret key for sessions
+    app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
+    
+    # Admin password from environment or default
+    ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'lukagataupasswordnya')
+    
+    # Initialize database
+    db = UserDatabase()
+    
+    # Login route
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        """Login route"""
+        if request.method == 'POST':
+            password = request.form.get('password', '')
+            if password == ADMIN_PASSWORD:
+                session['authenticated'] = True
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Password salah!', 'error')
+        return render_template('login.html')
+    
+    # Logout route
+    @app.route('/logout')
+    def logout():
+        """Logout route"""
+        session.pop('authenticated', None)
+        return redirect(url_for('login'))
+    
+    # Dashboard route (protected)
     @app.route('/', methods=['GET'])
     def dashboard():
-        """Dashboard route"""
+        """Dashboard route - protected"""
+        if not session.get('authenticated'):
+            return redirect(url_for('login'))
+        
+        # Get statistics
+        total_users = db.get_total_users()
+        all_users = db.get_all_users()
+        most_active = db.get_most_active_users(limit=10)
+        recent_activity = db.get_recent_activity(limit=20)
+        
         webhook_url = os.getenv('WEBHOOK_URL', 'https://bmkg-artikel.vercel.app')
-        return render_template('index.html', 
-                             bot_name=BOT_NAME, 
-                             webhook_url=webhook_url)
+        
+        return render_template('index.html',
+                             bot_name=BOT_NAME,
+                             webhook_url=webhook_url,
+                             total_users=total_users,
+                             all_users=all_users,
+                             most_active=most_active,
+                             recent_activity=recent_activity)
     
     # Add health check endpoint
     @app.route('/health')

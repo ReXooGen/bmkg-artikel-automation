@@ -255,6 +255,37 @@ class UserDatabase:
             logger.error(f"Error getting most active users: {str(e)}")
             return []
     
+    def get_recent_activity(self, limit: int = 20) -> List[Dict]:
+        """Get recent activity across all users"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT user_id, username, name, command, timestamp
+                FROM activity_log
+                ORDER BY timestamp DESC
+                LIMIT ?
+            """, (limit,))
+            
+            rows = cursor.fetchall()
+            conn.close()
+            
+            activities = []
+            for row in rows:
+                activities.append({
+                    'user_id': row[0],
+                    'username': row[1],
+                    'name': row[2],
+                    'command': row[3],
+                    'timestamp': row[4]
+                })
+            
+            return activities
+            
+        except Exception as e:
+            logger.error(f"Error getting recent activity: {str(e)}")
+            return []
+    
     def get_command_stats(self) -> Dict[str, int]:
         """Get statistics for each command"""
         try:
