@@ -439,19 +439,28 @@ async def artikelkota(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not context.args:
         # Initialize context untuk interactive mode
-        context.user_data['selected_cities'] = []
-        context.user_data['city_times'] = {}
-        context.user_data['timezone_filter'] = None
+        session_data = {
+            'selected_cities': [],
+            'city_times': {},
+            'timezone_filter': None
+        }
+        
+        # Save session to DB if available
+        if user_db:
+            user_db.update_session(user.id, session_data)
+        
+        # Also keep in context.user_data for quick access
+        context.user_data.update(session_data)
         
         # Tampilkan menu pilihan timezone terlebih dahulu
         keyboard = [
             [
-                InlineKeyboardButton("🌅 WIB (Jawa, Sumatra)", callback_data="tz_WIB"),
-                InlineKeyboardButton("🌄 WITA (Kalimantan, Sulawesi)", callback_data="tz_WITA")
+                InlineKeyboardButton("🌏 Indonesia (Semua Zona)", callback_data="tz_ALL")
             ],
             [
-                InlineKeyboardButton("🌇 WIT (Papua, Maluku)", callback_data="tz_WIT"),
-                InlineKeyboardButton("🌏 Semua Zona", callback_data="tz_ALL")
+                InlineKeyboardButton("🌅 WIB", callback_data="tz_WIB"),
+                InlineKeyboardButton("🌄 WITA", callback_data="tz_WITA"),
+                InlineKeyboardButton("🌇 WIT", callback_data="tz_WIT")
             ],
             [InlineKeyboardButton("🎲 Pilih Random", callback_data="artikel_random")]
         ]
@@ -1676,6 +1685,12 @@ Data dari BMKG Indonesia 🇮🇩
         # Simpan timezone filter ke context
         context.user_data['timezone_filter'] = timezone if timezone != "ALL" else None
         
+        # Load session from DB if context is empty
+        if 'selected_cities' not in context.user_data and user_db:
+            session_data = user_db.get_session(query.from_user.id)
+            if session_data:
+                context.user_data.update(session_data)
+        
         # Initialize selected_cities dan city_times jika belum ada
         if 'selected_cities' not in context.user_data:
             context.user_data['selected_cities'] = []
@@ -1905,12 +1920,12 @@ Data dari BMKG Indonesia 🇮🇩
         
         keyboard = [
             [
-                InlineKeyboardButton("🌅 WIB (Jawa, Sumatra)", callback_data="tz_WIB"),
-                InlineKeyboardButton("🌄 WITA (Kalimantan, Sulawesi)", callback_data="tz_WITA")
+                InlineKeyboardButton("� Indonesia (Semua Zona)", callback_data="tz_ALL")
             ],
             [
-                InlineKeyboardButton("🌇 WIT (Papua, Maluku)", callback_data="tz_WIT"),
-                InlineKeyboardButton("🌏 Semua Zona", callback_data="tz_ALL")
+                InlineKeyboardButton("🌅 WIB", callback_data="tz_WIB"),
+                InlineKeyboardButton("🌄 WITA", callback_data="tz_WITA"),
+                InlineKeyboardButton("🌇 WIT", callback_data="tz_WIT")
             ],
             [InlineKeyboardButton("🎲 Pilih Random", callback_data="artikel_random")]
         ]

@@ -67,6 +67,15 @@ class UserDatabase:
                 ON activity_log(timestamp)
             """)
             
+            # Create user sessions table for interactive state persistence
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_sessions (
+                    user_id INTEGER PRIMARY KEY,
+                    data TEXT,
+                    updated_at TIMESTAMP
+                )
+            """)
+            
             conn.commit()
             conn.close()
             
@@ -338,6 +347,62 @@ class UserDatabase:
         except Exception as e:
             logger.error(f"Error exporting to CSV: {str(e)}")
             return False
+
+    def update_session(self, user_id: int, data: Dict) -> bool:
+        """Update user session data"""
+        try:
+            import json
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            current_time = datetime.now()
+            json_data = json.dumps(data)
+            
+            cursor.execute("""
+                INSERT OR REPLACE INTO user_sessions (user_id, data, updated_at)
+                VALUES (?, ?, ?)
+            """, (user_id, json_data, current_time))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.error(f"Error updating session: {str(e)}")
+            return False
+
+    def get_session(self, user_id: int) -> Dict:
+        """Get user session data"""
+        try:
+            import json
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT data FROM user_sessions WHERE user_id = ?", (user_id,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return json.loads(row[0])
+            return {}
+        except Exception as e:
+            logger.error(f"Error getting session: {str(e)}")
+            return {}
+
+    def clear_session(self, user_id: int) -> bool:
+        """Clear user session data"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.error(f"Error clearing session: {str(e)}")
+            return False
+
 
 
 if __name__ == "__main__":
