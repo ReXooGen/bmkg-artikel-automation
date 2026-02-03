@@ -38,12 +38,13 @@ class BMKGWeatherBot:
         # Create Flask app first
         self.flask_app = Flask(__name__)
         
-        # Initialize PyWa client with Flask app as server
+        # Initialize PyWa client with custom callback path to avoid "/" conflict
         self.wa = WhatsApp(
             phone_id=WA_PHONE_ID,
             token=WA_TOKEN,
             server=self.flask_app,
             verify_token=WA_VERIFY_TOKEN,
+            callback_url="/whatsapp",  # Use custom path instead of default "/"
         )
         
         # Initialize handlers
