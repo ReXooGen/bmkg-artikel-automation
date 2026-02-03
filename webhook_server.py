@@ -22,14 +22,27 @@ logger = logging.getLogger(__name__)
 
 # Initialize Telegram App (Lazy loading)
 telegram_app = None
+telegram_app_loop = None
 
 def get_tel_app():
-    global telegram_app
-    if telegram_app is None:
+    global telegram_app, telegram_app_loop
+    
+    # Get current event loop
+    try:
+        current_loop = asyncio.get_event_loop()
+    except RuntimeError:
+        current_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(current_loop)
+    
+    # Reinitialize if loop has changed (important for serverless)
+    if telegram_app is None or telegram_app_loop != current_loop:
         try:
             telegram_app = get_telegram_app()
+            telegram_app_loop = current_loop
+            logger.info("Telegram app initialized/refreshed")
         except Exception as e:
             logger.error(f"Failed to init Telegram app: {e}")
+            
     return telegram_app
 
 def create_app():
@@ -114,29 +127,31 @@ def create_app():
             # Decode the update from JSON
             update = Update.de_json(data, application.bot)
             
-            # Process the update
+            # Process the update with fresh event loop per request
             async def process_update_async():
                 # Initialize application just in case
                 if not application._initialized:
                     await application.initialize()
                 await application.process_update(update)
             
-            # Run async code without closing event loop prematurely
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            # Create fresh event loop for each webhook request
+            # This prevents event loop binding issues in serverless
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             
-            # Run and wait for completion, but don't close loop
-            loop.run_until_complete(process_update_async())
+            try:
+                # Run and wait for completion
+                loop.run_until_complete(process_update_async())
+            finally:
+                # Clean up but don't close the loop to avoid httpx issues
+                # Let Python garbage collector handle it
+                asyncio.set_event_loop(None)
             
             return {"status": "ok"}
         except Exception as e:
             logger.error(f"Telegram webhook error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {"error": str(e)}, 500
     
     logger.info(f"{BOT_NAME} initialized successfully")
