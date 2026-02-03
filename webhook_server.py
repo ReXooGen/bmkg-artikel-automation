@@ -105,8 +105,11 @@ def create_app():
         return {"status": "ok", "bot": BOT_NAME}
 
     # Telegram Webhook Endpoint
-    @app.route('/telegram', methods=['POST'])
+    @app.route('/telegram', methods=['GET', 'POST'])
     def telegram_webhook():
+        if request.method == 'GET':
+             return "Telegram Webhook Endpoint is Running. (POST data required for updates)", 200
+
         try:
             # Retrieve the JSON data from the request
             data = request.get_json(force=True)
