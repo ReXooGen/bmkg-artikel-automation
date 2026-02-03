@@ -2239,13 +2239,14 @@ def get_telegram_app():
         logger.error("TELEGRAM_BOT_TOKEN tidak ditemukan!")
         return None
         
+    # Increase timeouts for Serverless Environment stability
     application = (
         Application.builder()
         .token(token)
-        .connect_timeout(30.0)
-        .read_timeout(30.0)
-        .write_timeout(30.0)
-        .pool_timeout(30.0)
+        .connect_timeout(60.0)
+        .read_timeout(60.0)
+        .write_timeout(60.0)
+        .pool_timeout(60.0)
         .build()
     )
     
