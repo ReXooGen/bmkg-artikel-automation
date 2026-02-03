@@ -1,4 +1,11 @@
 {
+    "buildCommand": "echo 'No build required'",
+    "functions": {
+        "api/index.py": {
+            "runtime": "python3.12",
+            "maxDuration": 60
+        }
+    },
     "rewrites": [
         {
             "source": "/(.*)",
