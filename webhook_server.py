@@ -1,5 +1,5 @@
 """
-Flask Webhook Server untuk WhatsApp Bot
+Flask Webhook Server untuk Telegram Bot
 """
 
 from flask import Flask, render_template, request
@@ -7,9 +7,8 @@ from telegram import Update
 import asyncio
 import os
 
-from whatsapp_bot import BMKGWeatherBot
 from telegram_bot import get_telegram_app
-from bot_config import PORT, WEBHOOK_URL, BOT_NAME
+from bot_config import BOT_NAME
 import logging
 
 # Setup logging
@@ -40,21 +39,17 @@ def create_app():
     logger.info(f"Initializing {BOT_NAME}...")
     logger.info(f"Template dir: {template_dir}")
     
-    # Initialize bot
-    bot = BMKGWeatherBot()
+    # Create Flask app
+    app = Flask(__name__, template_folder=template_dir)
     
-    # Get Flask app from PyWa
-    app = bot.get_app()
-    # Update template folder
-    app.template_folder = template_dir
-    
-    # Override the root route for dashboard (PyWa uses it for webhook by default)
+    # Dashboard route
     @app.route('/', methods=['GET'])
     def dashboard():
-        """Dashboard route - override PyWa's webhook verification"""
+        """Dashboard route"""
+        webhook_url = os.getenv('WEBHOOK_URL', 'https://bmkg-artikel.vercel.app')
         return render_template('index.html', 
                              bot_name=BOT_NAME, 
-                             webhook_url=WEBHOOK_URL)
+                             webhook_url=webhook_url)
     
     # Add health check endpoint
     @app.route('/health')
@@ -96,7 +91,6 @@ def create_app():
             return {"error": str(e)}, 500
     
     logger.info(f"{BOT_NAME} initialized successfully")
-    logger.info(f"Webhook URL: {WEBHOOK_URL}")
     
     return app
 
@@ -104,15 +98,17 @@ def create_app():
 if __name__ == "__main__":
     app = create_app()
     
+    PORT = int(os.getenv('PORT', 5000))
+    WEBHOOK_URL = os.getenv('WEBHOOK_URL', 'http://localhost:5000')
+    
     print("\n" + "="*60)
     print(f"🤖 {BOT_NAME} Starting...")
     print("="*60)
     print(f"\n📡 Webhook URL: {WEBHOOK_URL}")
     print(f"🌐 Port: {PORT}")
     print("\n⚙️  Make sure to:")
-    print("   1. Set webhook URL in Meta Developer Console")
-    print("   2. WhatsApp phone number is configured")
-    print("   3. Access token is valid")
+    print("   1. Set Telegram webhook URL")
+    print("   2. Bot token is configured")
     print("\n🚀 Server starting...\n")
     
     app.run(
