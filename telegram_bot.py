@@ -1350,6 +1350,21 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"🕐 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*60}\n")
     
+    # -------------------------------------------------------------
+    # SESSION MANAGEMENT FOR VERCEL (Stateless)
+    # -------------------------------------------------------------
+    # Restore session from SQLite if context is empty
+    if user_db:
+        if 'selected_cities' not in context.user_data:
+            try:
+                session_data = user_db.get_session(user.id)
+                if session_data:
+                    logger.info(f"🔄 Restoring session for user {user.id}")
+                    context.user_data.update(session_data)
+            except Exception as e:
+                logger.error(f"Failed to restore session: {e}")
+    # -------------------------------------------------------------
+
     data = query.data
     
     # Handle pilih timezone untuk cuaca kota
@@ -1835,6 +1850,15 @@ Data dari BMKG Indonesia 🇮🇩
         if not city_exists:
             context.user_data['selected_cities'].append(f"{city_name} ({hour:02d}:00)")
             context.user_data['city_times'][city_name] = hour
+            
+            # --- SAVE SESSION ---
+            if user_db:
+                try:
+                    user_db.update_session(query.from_user.id, context.user_data)
+                    logger.info(f"💾 Session saved for user {query.from_user.id}")
+                except Exception as e:
+                    logger.error(f"Failed to save session: {e}")
+            # --------------------
         
         selected = context.user_data['selected_cities']
         
@@ -1951,6 +1975,15 @@ Data dari BMKG Indonesia 🇮🇩
     elif data == "clear_cities":
         context.user_data['selected_cities'] = []
         context.user_data['city_times'] = {}
+        
+        # --- CLEAR SESSION ---
+        if user_db:
+            try:
+                user_db.clear_session(query.from_user.id)
+                logger.info(f"🗑️ Session cleared for user {query.from_user.id}")
+            except Exception as e:
+                logger.error(f"Failed to clear session: {e}")
+        # ---------------------
         
         keyboard = [[InlineKeyboardButton("« Kembali ke Provinsi", callback_data="back_prov")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
