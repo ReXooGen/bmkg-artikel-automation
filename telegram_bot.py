@@ -1355,15 +1355,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # SESSION MANAGEMENT FOR VERCEL (Stateless)
     # -------------------------------------------------------------
     # Restore session from SQLite if context is empty
-    if user_db:
-        if 'selected_cities' not in context.user_data:
-            try:
-                session_data = user_db.get_session(user.id)
-                if session_data:
-                    logger.info(f"🔄 Restoring session for user {user.id}")
-                    context.user_data.update(session_data)
-            except Exception as e:
-                logger.error(f"Failed to restore session: {e}")
+    # Always attempt to restore if user_data is empty (new request)
+    if user_db and not context.user_data: 
+        try:
+            session_data = user_db.get_session(user.id)
+            if session_data:
+                logger.info(f"🔄 Restoring session for user {user.id}")
+                context.user_data.update(session_data)
+        except Exception as e:
+            logger.error(f"Failed to restore session: {e}")
     # -------------------------------------------------------------
 
     data = query.data
@@ -1488,6 +1488,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Simpan pilihan tanggal ke context
         context.user_data['cuaca_days_offset'] = days_offset
         context.user_data['cuaca_city_name'] = city_name
+        
+        # --- SAVE SESSION (To persist date selection) ---
+        if user_db:
+            try:
+                user_db.update_session(query.from_user.id, context.user_data)
+                logger.info(f"💾 Session cuaca saved for user {query.from_user.id} (Offset: {days_offset})")
+            except Exception as e:
+                logger.error(f"Failed to save cuaca session: {e}")
+        # -----------------------------------------------
         
         # Tampilkan keyboard untuk memilih jam
         keyboard = []
@@ -2228,6 +2237,102 @@ Data dari BMKG Indonesia 🇮🇩
         except Exception as e:
             await query.message.reply_text(f"❌ Error: {str(e)}")
             print(f"Error in artikel random: {e}")
+        
+    # Handle weather warning (ekstrem)
+    elif data.startswith("warn_day_"):
+        offset = int(data.split("_")[-1])
+        
+        day_labels = ["Hari Ini", "Besok", "Lusa"]
+        day_label = day_labels[offset]
+        
+        # Calculate date (WIB)
+        target_date = datetime.utcnow() + timedelta(hours=7) + timedelta(days=offset)
+        date_str = target_date.strftime('%d %B %Y')
+        
+        await query.edit_message_text(f"⏳ Mengambil data cuaca ekstrem untuk {day_label} ({date_str})...")
+        
+        try:
+            warnings = image_fetcher.fetch_extreme_weather_data(day_offset=offset)
+            
+            if not warnings:
+                msg = f"✅ *Tidak ada peringatan cuaca ekstrem* untuk {day_label} ({date_str})."
+                keyboard = [
+                    [InlineKeyboardButton("📅 Hari Ini", callback_data="warn_day_0")],
+                    [InlineKeyboardButton("📅 Besok", callback_data="warn_day_1")],
+                    [InlineKeyboardButton("📅 Lusa", callback_data="warn_day_2")]
+                ]
+            else:
+                msg = f"⚠️ *Peringatan Cuaca Ekstrem {day_label} ({date_str})*\n\n"
+                msg += f"Ditemukan {len(warnings)} peringatan:\n\n"
+                
+                limit = 30
+                sorted_warnings = sorted(warnings, key=lambda x: x.get('region', x.get('province', 'N/A')))
+                
+                for i, w in enumerate(sorted_warnings):
+                    if i >= limit:
+                        msg += f"\n... dan {len(warnings) - limit} lainnya."
+                        break
+                    
+                    status = w.get('status', 'Waspada')
+                    region = w.get('region', w.get('province', 'Wilayah'))
+                    
+                    # Icons
+                    icon = "🌧️" if "Hujan" in status else "⚠️"
+                    if "Petir" in status: icon = "⛈️"
+                    if "Angin" in status: icon = "💨"
+                    if "Lebat" in status: icon = "🌧️🌊"
+                    
+                    # Clean region name
+                    region = region.replace('Provinsi ', '')
+                    msg += f"{icon} *{region}*: {status}\n"
+            
+                # Button back
+                keyboard = [
+                    [InlineKeyboardButton("« Kembali", callback_data="back_warn_menu")],
+                    [InlineKeyboardButton("📅 Hari Ini", callback_data="warn_day_0")],
+                    [InlineKeyboardButton("📅 Besok", callback_data="warn_day_1")],
+                    [InlineKeyboardButton("📅 Lusa", callback_data="warn_day_2")]
+                ]
+            
+            await query.edit_message_text(msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
+            
+        except Exception as e:
+            await query.edit_message_text(f"❌ Error: {e}")
+            print(f"Error fetching extreme weather: {e}")
+            import traceback
+            traceback.print_exc()
+            
+    elif data == "back_warn_menu":
+        keyboard = [
+            [InlineKeyboardButton("📅 Hari Ini", callback_data="warn_day_0")],
+            [InlineKeyboardButton("📅 Besok", callback_data="warn_day_1")],
+            [InlineKeyboardButton("📅 Lusa", callback_data="warn_day_2")]
+        ]
+        await query.edit_message_text(
+            "⚠️ *Peringatan Dini Cuaca Ekstrem*\n\n"
+            "Silakan pilih hari:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+
+
+async def extreme_weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler untuk command /ekstrem"""
+    init_components()
+    
+    keyboard = [
+        [InlineKeyboardButton("📅 Hari Ini", callback_data="warn_day_0")],
+        [InlineKeyboardButton("📅 Besok", callback_data="warn_day_1")],
+        [InlineKeyboardButton("📅 Lusa", callback_data="warn_day_2")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        "⚠️ *Peringatan Dini Cuaca Ekstrem*\n\n"
+        "Silakan pilih hari untuk melihat potensi cuaca ekstrem di Indonesia:",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
 
 def get_telegram_app():
@@ -2262,6 +2367,7 @@ def get_telegram_app():
     application.add_handler(CommandHandler("random", random_command))
     application.add_handler(CommandHandler("stats", stats))
     application.add_handler(CommandHandler("userstats", userstats))
+    application.add_handler(CommandHandler("ekstrem", extreme_weather_command))
     
     # Tambahkan callback query handler untuk button
     application.add_handler(CallbackQueryHandler(button_callback))

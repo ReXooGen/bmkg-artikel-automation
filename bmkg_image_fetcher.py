@@ -3,10 +3,12 @@ Modul untuk mengambil gambar prediksi curah hujan dari BMKG
 """
 import os
 import requests
-from datetime import datetime
-from typing import Optional, Tuple
+from datetime import datetime, timedelta
+from typing import Optional, Tuple, Dict, List
 import hashlib
 from pathlib import Path
+from bs4 import BeautifulSoup
+import xml.etree.ElementTree as ET
 
 
 class BMKGImageFetcher:
@@ -26,6 +28,8 @@ class BMKGImageFetcher:
             self.save_dir = save_dir
             
         self.base_url = "https://inderaja.bmkg.go.id"
+        self.extreme_weather_url = "https://www.bmkg.go.id/cuaca/potensi-cuaca-ekstrem"
+        self.xml_api_url = "https://data.bmkg.go.id/DataMKG/MEWS/DigitalForecast/DigitalForecast-Indonesia.xml"
         
         # URL gambar yang tersedia
         self.image_urls = {
@@ -214,7 +218,112 @@ class BMKGImageFetcher:
             info['modified'] = datetime.fromtimestamp(stat.st_mtime)
         
         return info
-    
+
+    def fetch_extreme_weather_data(self, day_offset: int = 0) -> List[Dict[str, str]]:
+        """
+        Mengambil data cuaca ekstrem dari BMKG.
+        Mencoba scraping halaman web terlebih dahulu, fallback ke XML API.
+        
+        Args:
+            day_offset: 0=Hari Ini, 1=Besok, 2=Lusa
+            
+        Returns:
+            List of Warning Dict: [{'region': '...', 'status': '...'}, ...]
+        """
+        results = []
+        
+        # Setup headers untuk scraping
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Referer': 'https://www.bmkg.go.id/',
+            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7'
+        }
+        
+        try:
+            # 1. Coba Scraping Halaman Visual
+            print(f"Mencoba scraping data cuaca ekstrem (Offset: {day_offset})...")
+            response = requests.get(self.extreme_weather_url, headers=headers, timeout=10, verify=False)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                table = soup.find('table', class_='table')
+                
+                if table:
+                    # Index kolom: No | Provinsi | Hari Ini | Besok | Lusa
+                    # Hari Ini = col index 2
+                    col_idx = 2 + day_offset
+                    
+                    rows = table.find_all('tr')[1:] # Skip header
+                    for row in rows:
+                        cols = row.find_all('td')
+                        if len(cols) >= 5:
+                            province = cols[1].get_text(strip=True)
+                            status = cols[col_idx].get_text(strip=True)
+                            
+                            # Filter status
+                            # Biasanya "-" atau kosong jika aman
+                            if status and status != "-" and len(status) > 2:
+                                results.append({
+                                    'region': province,
+                                    'status': status
+                                })
+                    
+                    if results:
+                        return results
+
+        except Exception as e:
+            print(f"Scraping visual gagal: {e}")
+            
+        # 2. Fallback: Gunakan API XML Digital Forecast
+        # Jika scraping gagal (misal 403 Forbidden), gunakan data open XML
+        print("Scraping gagal/kosong, menggunakan fallback XML API...")
+        try:
+             # Target Date (YYYYMMDD)
+            target_date = (datetime.utcnow() + timedelta(hours=7) + timedelta(days=day_offset))
+            target_date_str = target_date.strftime("%Y%m%d")
+            
+            response = requests.get(self.xml_api_url, timeout=30)
+            if response.status_code == 200:
+                root = ET.fromstring(response.content)
+                
+                # Kode Cuaca Ekstrem: 63 (Hujan Lebat), 95 (Hujan Petir), 97 (Hujan Petir)
+                extreme_codes = ['63', '95', '97']
+                
+                temp_results = {} # Gunakan dict untuk dedup per provinsi
+                
+                for area in root.findall(".//area"):
+                    # Kita cari level provinsi jika memungkinkan, atau kota
+                    # XML biasanya per-kota. Kita ambil domain-nya (Provinsi)
+                    province = area.get("domain")
+                    
+                    weather_param = area.find("parameter[@id='weather']")
+                    if weather_param:
+                        for timerange in weather_param.findall("timerange"):
+                            dt_str = timerange.get("datetime") # YYYYMMDDHHmm
+                            
+                            # Cek apakah tanggalnya cocok
+                            if dt_str.startswith(target_date_str):
+                                val = timerange.find("value").text
+                                if val in extreme_codes:
+                                    status = "Hujan Lebat" if val == '63' else "Hujan Petir"
+                                    
+                                    # Simpan jika belum ada atau update prioritaskan hujan petir
+                                    if province not in temp_results:
+                                        temp_results[province] = status
+                                    elif status == "Hujan Petir" and temp_results[province] == "Hujan Lebat":
+                                        temp_results[province] = status
+                
+                # Convert ke list
+                for prov, status in temp_results.items():
+                    results.append({'region': prov, 'status': status})
+                    
+                results.sort(key=lambda x: x['region'])
+                
+        except Exception as e:
+            print(f"XML Fallback error: {e}")
+            
+        return results
+
     def cleanup_old_images(self, keep_days: int = 30):
         """
         Hapus gambar lama (kecuali yang latest)
