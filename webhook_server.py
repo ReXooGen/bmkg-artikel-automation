@@ -129,10 +129,16 @@ def create_app():
             
             # Process the update with fresh event loop per request
             async def process_update_async():
-                # Initialize application just in case
-                if not application._initialized:
-                    await application.initialize()
-                await application.process_update(update)
+                try:
+                    # Initialize application just in case
+                    if not application._initialized:
+                        await application.initialize()
+                    await application.process_update(update)
+                finally:
+                    # Shutdown application to close httpx client and release loop binding
+                    # This ensures next request can re-initialize with new loop
+                    if application._initialized:
+                        await application.shutdown()
             
             # Create fresh event loop for each webhook request
             # This prevents event loop binding issues in serverless
