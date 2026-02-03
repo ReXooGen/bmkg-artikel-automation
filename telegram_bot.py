@@ -806,7 +806,8 @@ async def cuacakota(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         # Tampilkan button untuk memilih tanggal (hari ini atau besok)
-        now = datetime.now()
+        # Fix: Use WIB (UTC+7) instead of Server Time (UTC)
+        now = datetime.utcnow() + timedelta(hours=7)
         today = now.strftime('%d %B %Y')
         tomorrow = (now + timedelta(days=1)).strftime('%d %B %Y')
         
@@ -1457,7 +1458,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         city_name = data.split("_", 2)[2]
         
         # Tampilkan keyboard untuk memilih tanggal (hari ini atau besok)
-        now = datetime.now()
+        # Fix: Use WIB (UTC+7) instead of Server Time (UTC)
+        now = datetime.utcnow() + timedelta(hours=7)
         today = now.strftime('%d %B %Y')
         tomorrow = (now + timedelta(days=1)).strftime('%d %B %Y')
         
