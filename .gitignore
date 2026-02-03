@@ -68,3 +68,5 @@ bmkg_images/
 *.png
 *.jpg
 *.jpeg
+.vercel
+.env*.local
