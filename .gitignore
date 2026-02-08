@@ -70,6 +70,7 @@ test_auto_recovery.py
 test_database_integration.py
 template_generator.py
 
+
 # BMKG Images
 bmkg_images/
 *.png
