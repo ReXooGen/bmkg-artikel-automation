@@ -63,6 +63,13 @@ webhook_server.py
 bot_handlers.py
 bot_config.py
 
+# Test & Sender
+whatsapp_sender.py
+test_user_logging.py
+test_auto_recovery.py
+test_database_integration.py
+template_generator.py
+
 # BMKG Images
 bmkg_images/
 *.png
